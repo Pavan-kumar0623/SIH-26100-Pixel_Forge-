@@ -1,0 +1,14 @@
+{
+  "name": "procure-ai-ocr-worker",
+  "version": "1.0.0",
+  "description": "Tesseract.js OCR microservice for ProcureAI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "tesseract.js": "^5.1.1",
+    "express": "^4.21.2"
+  }
+}
