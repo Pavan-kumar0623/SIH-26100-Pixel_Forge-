@@ -193,9 +193,10 @@ h2 {{ color: #e2e8f0; margin-top: 0; font-size: 1.1rem; display: flex; align-ite
             pass
 
     disposition = "inline" if inline else "attachment"
+    ascii_filename = "".join(c for c in doc.file_name if 32 <= ord(c) < 127 and c not in '"\\') or "document.pdf"
     return FileResponse(
         path=doc.file_path,
-        filename=doc.file_name,
+        filename=ascii_filename,
         media_type=media_type,
-        headers={"Content-Disposition": f'{disposition}; filename="{doc.file_name}"'}
+        content_disposition_type=disposition
     )

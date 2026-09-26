@@ -201,28 +201,48 @@ def _update_bidder_intelligence(bidder_id: int, document_type: str, data: dict, 
         return
 
     updated = False
+    
+    # Update company name if detected in document
+    extracted_company = (
+        data.get("company_name")
+        or data.get("legal_name")
+        or data.get("trade_name")
+        or data.get("enterprise_name")
+        or (data.get("name") if document_type in ["PAN_CARD", "GST_CERTIFICATE"] else None)
+    )
+    if extracted_company and str(extracted_company).strip() and len(str(extracted_company).strip()) > 2:
+        bidder.company_name = str(extracted_company).strip()
+        updated = True
+
     if document_type == "GST_CERTIFICATE":
-        if data.get("gstin") and not bidder.gstin:
+        if data.get("gstin"):
             bidder.gstin = data["gstin"]
             updated = True
-        if data.get("registered_address") and not bidder.registered_address:
+        if data.get("registered_address"):
             bidder.registered_address = data["registered_address"]
             updated = True
     elif document_type == "PAN_CARD":
-        if data.get("pan") and not bidder.pan:
+        if data.get("pan"):
             bidder.pan = data["pan"]
             updated = True
     elif document_type == "UDYAM_CERTIFICATE":
-        if data.get("udyam_number") and not bidder.udyam_number:
+        if data.get("udyam_number"):
             bidder.udyam_number = data["udyam_number"]
             updated = True
+        if data.get("address") and not bidder.registered_address:
+            bidder.registered_address = data["address"]
+            updated = True
     elif document_type == "INCORPORATION_CERTIFICATE":
-        if data.get("cin") and not bidder.cin:
+        if data.get("cin"):
             bidder.cin = data["cin"]
             updated = True
-        if data.get("incorporation_date") and not bidder.incorporation_date:
+        if data.get("incorporation_date"):
             bidder.incorporation_date = data["incorporation_date"]
+            updated = True
+        if data.get("registered_address"):
+            bidder.registered_address = data["registered_address"]
             updated = True
 
     if updated:
         db.commit()
+        db.refresh(bidder)

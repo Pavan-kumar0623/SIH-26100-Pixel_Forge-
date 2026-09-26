@@ -77,7 +77,7 @@ def gather_procurement_context(
             f"\nRequirements ({len(reqs)} total):"
         ]
         for r in reqs:
-            t_text.append(f"- [{r.code}] {r.name} (Mandatory: {r.mandatory}, Type: {r.expected_document_type})")
+            t_text.append(f"- [REQ-{r.id}] {r.name} (Mandatory: {r.mandatory}, Type: {r.expected_document_type})")
 
         t_text.append(f"\nParticipating Bidders ({len(tender_bidders)} total):")
         for b in tender_bidders:

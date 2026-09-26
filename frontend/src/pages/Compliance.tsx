@@ -225,7 +225,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ tenderId }) => {
                         {item.evidence && (
                           <button
                             onClick={() => setEvidenceModal(item)}
-                            className="px-2 py-1 bg-[#1f2937] hover:bg-[#334155] text-slate-200 border border-[#334155] rounded text-[10px] font-medium inline-flex items-center gap-1 transition"
+                            className="px-2 py-1 bg-[#1f2937] hover:bg-[#334155] text-slate-200 border border-[#334155] rounded text-[10px] font-medium inline-flex items-center gap-1 transition cursor-pointer"
                             title="View extracted evidence"
                           >
                             <Eye className="w-3 h-3 text-[#6366f1]" /> Evidence
@@ -234,7 +234,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ tenderId }) => {
                         <button
                           onClick={() => handleRecheckBidder(item.bidder_id)}
                           disabled={recheckingBidderId === item.bidder_id}
-                          className="px-2 py-1 bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#c0c1ff] border border-[#6366f1]/40 rounded text-[10px] font-medium inline-flex items-center gap-1 transition disabled:opacity-40"
+                          className="px-2 py-1 bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#c0c1ff] border border-[#6366f1]/40 rounded text-[10px] font-medium inline-flex items-center gap-1 transition disabled:opacity-40 cursor-pointer"
                           title="Re-run compliance for this bidder"
                         >
                           <RefreshCw className={`w-3 h-3 ${recheckingBidderId === item.bidder_id ? 'animate-spin' : ''}`} />
