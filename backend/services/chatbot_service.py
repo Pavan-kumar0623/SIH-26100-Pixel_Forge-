@@ -60,6 +60,12 @@ def get_quick_actions() -> List[QuickAction]:
             category="Vigilance"
         ),
         QuickAction(
+            id="doc_anomalies",
+            label="Explain Document Failures",
+            prompt="Which uploaded documents failed validation or require review, and what specific rules or regex failed?",
+            category="Document"
+        ),
+        QuickAction(
             id="recommendation",
             label="Award Recommendation Readiness",
             prompt="Based on the compliance matrix and risk profiles, which bidders are eligible for commercial evaluation?",

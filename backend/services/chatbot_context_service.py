@@ -114,13 +114,31 @@ def gather_procurement_context(
             f"\nUploaded Documents ({len(b_docs)}):"
         ]
         for d in b_docs:
+            fields = db.query(ExtractedField).filter(ExtractedField.document_id == d.id).all()
+            field_details = []
+            invalid_or_flagged = []
+            for f in fields:
+                f_str = f"{f.field_name}: '{f.field_value}' [{f.validation_status or 'EXTRACTED'}]"
+                if f.validation_message:
+                    f_str += f" ({f.validation_message})"
+                field_details.append(f_str)
+                if f.validation_status in ["INVALID", "EXPIRED", "NEEDS_REVIEW"]:
+                    invalid_or_flagged.append(f"{f.field_name}={f.field_value} ({f.validation_message or f.validation_status})")
+
+            snippet_text = f"Status: {d.status}, Confidence: {d.classification_confidence}"
+            if invalid_or_flagged:
+                snippet_text += f" | Issues: {'; '.join(invalid_or_flagged)}"
+
             sources.append(ChatSource(
                 type="document",
                 id=d.id,
                 label=f"Doc: {d.file_name} ({d.document_type})",
-                snippet=f"Status: {d.status}, Confidence: {d.classification_confidence}"
+                snippet=snippet_text
             ))
-            b_text.append(f"- Doc #{d.id}: {d.file_name} -> Type: {d.document_type}, Status: {d.status}, OCR Used: {d.ocr_used}")
+            b_text.append(
+                f"- Doc #{d.id}: {d.file_name} -> Type: {d.document_type}, Status: {d.status}, OCR Used: {d.ocr_used}\n"
+                f"  Extracted Fields: {', '.join(field_details) if field_details else 'None'}"
+            )
 
         b_text.append(f"\nCompliance Evaluations ({len(b_comp)}):")
         for c in b_comp:

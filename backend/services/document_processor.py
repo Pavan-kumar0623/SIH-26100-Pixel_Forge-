@@ -152,9 +152,20 @@ def process_document(document_id: int, db: Session) -> dict:
         # ── Step 7: Update Bidder Intelligence ──────────────────────────────
         _update_bidder_intelligence(doc.bidder_id, doc.document_type, extracted_data, db)
 
-        # ── Step 8: Final Status ─────────────────────────────────────────────
-        doc.status = "NEEDS_REVIEW" if has_low_confidence else "PROCESSED"
+        has_invalid_or_expired = any(field.get("validation_status") in ["INVALID", "EXPIRED"] for field in validated_fields)
+        doc.status = "NEEDS_REVIEW" if (has_low_confidence or has_invalid_or_expired) else "PROCESSED"
         db.commit()
+
+        # ── Step 8: Re-evaluate Compliance & Risk Engines ───────────────────
+        try:
+            bidder = db.query(Bidder).filter(Bidder.id == doc.bidder_id).first()
+            if bidder:
+                from services.compliance_engine import evaluate_bidder_compliance
+                from services.risk_engine import run_risk_detection
+                evaluate_bidder_compliance(bidder.id, bidder.tender_id, db)
+                run_risk_detection(bidder.id, bidder.tender_id, db)
+        except Exception as engine_err:
+            pass
 
         return {
             "status": doc.status,

@@ -42,6 +42,12 @@ scratch/
 *.log
 logs/
 
+# SQLite Databases
+*.db
+*.sqlite
+*.sqlite3
+backend/procure_ai.db
+
 # IDE & OS Files
 .DS_Store
 Thumbs.db

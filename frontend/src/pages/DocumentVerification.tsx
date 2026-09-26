@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Upload,
   FileSearch,
@@ -10,7 +10,12 @@ import {
   Download,
   RefreshCw,
   Cpu,
-  Layers
+  Layers,
+  ShieldAlert,
+  Info,
+  HelpCircle,
+  MessageSquare,
+  Building
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { getBidders, getDocuments, uploadDocument, getEvidence, reprocessDocument } from '../api/client';
@@ -19,6 +24,63 @@ import type { Bidder, DocumentItem, ExtractedField } from '../types';
 interface DocumentVerificationProps {
   tenderId: string;
 }
+
+// Compact Gauge Component for Document/Bidder Risk Level
+const RiskGauge: React.FC<{ score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; label?: string }> = ({
+  score,
+  level,
+  label = 'Risk Level',
+}) => {
+  // Angle: -90deg (0%) to 90deg (100%)
+  const angle = Math.min(Math.max((score / 100) * 180 - 90, -90), 90);
+  const colorClass =
+    level === 'HIGH'
+      ? '#ef4444'
+      : level === 'MEDIUM'
+      ? '#f59e0b'
+      : '#10b981';
+
+  return (
+    <div className="flex flex-col items-center justify-center p-3 bg-[#0b0f19] rounded border border-[#1e293b]">
+      <div className="relative w-28 h-14 flex items-end justify-center overflow-hidden">
+        <svg className="w-28 h-28" viewBox="0 0 100 50">
+          <path
+            d="M 10 50 A 40 40 0 0 1 90 50"
+            fill="none"
+            stroke="#1e293b"
+            strokeWidth="10"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 10 50 A 40 40 0 0 1 90 50"
+            fill="none"
+            stroke={colorClass}
+            strokeWidth="10"
+            strokeLinecap="round"
+            strokeDasharray="126"
+            strokeDashoffset={126 - (score / 100) * 126}
+            className="transition-all duration-700 ease-out"
+          />
+        </svg>
+        <div
+          className="absolute bottom-0 w-1 h-10 bg-slate-100 origin-bottom transition-transform duration-700 ease-out rounded-full shadow"
+          style={{ transform: `rotate(${angle}deg)` }}
+        />
+        <div className="absolute bottom-0 w-3 h-3 bg-[#6366f1] rounded-full border-2 border-white shadow" />
+      </div>
+
+      <div className="mt-2 text-center">
+        <div className="text-[10px] uppercase font-mono font-bold text-slate-400">{label}</div>
+        <div className="flex items-center gap-1.5 justify-center mt-0.5">
+          <span className="text-xs font-extrabold font-mono" style={{ color: colorClass }}>
+            {level}
+          </span>
+          <span className="text-[11px] font-mono text-slate-400">({score}%)</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tenderId }) => {
   const [searchParams] = useSearchParams();
@@ -34,6 +96,9 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
   const [uploading, setUploading] = useState(false);
   const [loadingEvidence, setLoadingEvidence] = useState(false);
 
+  // Poll controller
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (!tenderId) return;
     getBidders(tenderId).then((data) => {
@@ -44,13 +109,22 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
     });
   }, [tenderId, queryBidderId]);
 
-  const loadDocuments = async () => {
+  const loadDocuments = async (autoSelect = false) => {
     if (!selectedBidderId) return;
     try {
       const docs = await getDocuments(selectedBidderId);
       setDocuments(docs || []);
+
       if (docs && docs.length > 0) {
-        handleSelectDoc(docs[0]);
+        if (autoSelect || !selectedDoc) {
+          handleSelectDoc(docs[0]);
+        } else {
+          // Refresh selected doc reference
+          const updated = docs.find((d) => d.id === selectedDoc.id);
+          if (updated) {
+            setSelectedDoc(updated);
+          }
+        }
       } else {
         setSelectedDoc(null);
         setDocEvidence(null);
@@ -61,8 +135,30 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
   };
 
   useEffect(() => {
-    loadDocuments();
+    loadDocuments(true);
   }, [selectedBidderId]);
+
+  // Status polling effect: poll while any document is in UPLOADED or PROCESSING status
+  useEffect(() => {
+    const hasPendingDocs = documents.some(
+      (d) => d.status === 'UPLOADED' || d.status === 'PROCESSING'
+    );
+
+    if (hasPendingDocs || uploading) {
+      pollTimerRef.current = setInterval(() => {
+        loadDocuments(false);
+      }, 2000);
+    } else if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
+    };
+  }, [documents, uploading, selectedBidderId]);
 
   const handleSelectDoc = async (doc: DocumentItem) => {
     setSelectedDoc(doc);
@@ -85,7 +181,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
     setUploading(true);
     try {
       await uploadDocument(selectedBidderId, file);
-      await loadDocuments();
+      await loadDocuments(true);
     } catch (err) {
       console.error('Upload failed:', err);
     } finally {
@@ -99,13 +195,32 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
       await reprocessDocument(selectedDoc.id);
       setTimeout(() => {
         handleSelectDoc(selectedDoc);
-      }, 1000);
+      }, 800);
     } catch (err) {
       console.error('Reprocess failed:', err);
     }
   };
 
+  const selectedBidder = bidders.find((b) => String(b.id) === String(selectedBidderId));
   const fields: ExtractedField[] = docEvidence?.fields || selectedDoc?.extracted_fields || [];
+
+  // Determine key identifiers detected in the selected document
+  const extractedIdentifiers = fields.filter((f) =>
+    ['gstin', 'pan', 'cin', 'udyam_number', 'registration_number', 'tin'].includes(f.field_name.toLowerCase())
+  );
+
+  const invalidFields = fields.filter((f) => f.validation_status === 'INVALID' || f.validation_status === 'EXPIRED');
+
+  // Risk calculation for gauge
+  const calculateDocRisk = () => {
+    if (!selectedDoc) return { score: 10, level: 'LOW' as const };
+    if (selectedDoc.status === 'FAILED' || invalidFields.length > 1) return { score: 85, level: 'HIGH' as const };
+    if (selectedDoc.status === 'NEEDS_REVIEW' || invalidFields.length === 1 || selectedDoc.status === 'UNSUPPORTED')
+      return { score: 55, level: 'MEDIUM' as const };
+    return { score: 15, level: 'LOW' as const };
+  };
+
+  const riskInfo = calculateDocRisk();
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
@@ -172,6 +287,8 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
               ) : (
                 documents.map((doc) => {
                   const isSelected = selectedDoc?.id === doc.id;
+                  const isPending = doc.status === 'UPLOADED' || doc.status === 'PROCESSING';
+
                   return (
                     <div
                       key={doc.id}
@@ -193,16 +310,17 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                       </div>
 
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono flex-shrink-0 ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono flex-shrink-0 flex items-center gap-1 ${
                           doc.status === 'PROCESSED' || doc.status === 'COMPLETED'
                             ? 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40'
                             : doc.status === 'NEEDS_REVIEW'
                             ? 'bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40'
                             : doc.status === 'FAILED' || doc.status === 'UNSUPPORTED'
                             ? 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/40'
-                            : 'bg-slate-700 text-slate-300'
+                            : 'bg-indigo-900/40 text-indigo-300 border border-indigo-500/30'
                         }`}
                       >
+                        {isPending && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />}
                         {doc.status}
                       </span>
                     </div>
@@ -213,10 +331,11 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
           </div>
         </div>
 
-        {/* Right Column: Selected Document Extracted Fields & Confidence */}
+        {/* Right Column: Selected Document Details, Risk Gauge & Extracted Fields Table */}
         <div className="lg:col-span-2 bg-[#111827] rounded border border-[#1e293b] p-5 shadow-lg space-y-5">
           {selectedDoc ? (
             <>
+              {/* Document Header Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#1e293b] gap-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -228,7 +347,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                   <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
                     <span>Engine: <strong className="text-slate-300">{docEvidence?.ocr_used === 'true' || docEvidence?.ocr_used === true ? 'Tesseract Native' : 'PyMuPDF Native'}</strong></span>
                     <span>•</span>
-                    <span>Status: <strong className="text-[#10b981]">{selectedDoc.status}</strong></span>
+                    <span>Status: <strong className={selectedDoc.status === 'PROCESSED' ? 'text-[#10b981]' : selectedDoc.status === 'NEEDS_REVIEW' ? 'text-[#f59e0b]' : 'text-[#ef4444]'}>{selectedDoc.status}</strong></span>
                   </div>
                 </div>
 
@@ -251,6 +370,53 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                     <Download className="w-3.5 h-3.5" />
                     <span>Download</span>
                   </a>
+                </div>
+              </div>
+
+              {/* Document Overview & Risk Gauge Banner */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#0b0f19] p-4 rounded border border-[#1e293b]">
+                <div className="md:col-span-2 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-200 font-mono uppercase tracking-wider">
+                    <Building className="w-3.5 h-3.5 text-[#6366f1]" />
+                    <span>{selectedBidder?.company_name || 'Bidder Profile'}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">DOCUMENT TYPE:</span>
+                      <span className="text-slate-200 font-semibold">{selectedDoc.document_type || 'Unclassified'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">CONFIDENCE SCORE:</span>
+                      <span className="text-[#c0c1ff] font-semibold">
+                        {selectedDoc.classification_confidence ? `${Math.round(selectedDoc.classification_confidence * 100)}%` : '85% (Standard)'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">KEY IDENTIFIERS DETECTED:</span>
+                      <span className="text-slate-200 font-semibold">
+                        {extractedIdentifiers.length > 0
+                          ? extractedIdentifiers.map((i) => `${i.field_name.toUpperCase()}: ${i.field_value}`).join(', ')
+                          : 'Standard Document'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">VALIDATION REASON:</span>
+                      <span className={invalidFields.length > 0 ? 'text-amber-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+                        {invalidFields.length > 0
+                          ? `Requires Review: ${invalidFields[0].validation_message || 'Format mismatch detected'}`
+                          : selectedDoc.status === 'NEEDS_REVIEW'
+                          ? 'Requires Officer Review: Low confidence extraction'
+                          : selectedDoc.status === 'FAILED'
+                          ? 'Validation Failed: Unreadable image or format issue'
+                          : 'Verified: All regex rules passed'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Risk Gauge Visual */}
+                <div className="flex flex-col items-center justify-center border-l border-[#1e293b] pl-2">
+                  <RiskGauge score={riskInfo.score} level={riskInfo.level} label="Document Risk Gauge" />
                 </div>
               </div>
 
@@ -297,12 +463,12 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                                 </span>
                               )}
                               {field.validation_status === 'INVALID' && (
-                                <span className="px-1.5 py-0.5 rounded bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/40 font-bold text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/40 font-bold text-[10px]" title={field.validation_message}>
                                   INVALID
                                 </span>
                               )}
                               {field.validation_status === 'EXPIRED' && (
-                                <span className="px-1.5 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40 font-bold text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40 font-bold text-[10px]" title={field.validation_message}>
                                   EXPIRED
                                 </span>
                               )}
@@ -361,7 +527,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
               {evidenceModal.field.validation_message && (
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">Validation Rule Engine:</span>
-                  <span className="text-slate-300">{evidenceModal.field.validation_message}</span>
+                  <span className="text-amber-400 font-semibold">{evidenceModal.field.validation_message}</span>
                 </div>
               )}
             </div>

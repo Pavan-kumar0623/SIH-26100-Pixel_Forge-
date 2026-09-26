@@ -37,3 +37,54 @@
   outline: 2px solid #6366f1;
   outline-offset: 2px;
 }
+
+/* React Flow Node & Edge Cursor / Interactivity Enhancements */
+.react-flow__node {
+  cursor: pointer !important;
+  transition: opacity 200ms ease, transform 150ms ease, filter 200ms ease;
+}
+
+.react-flow__node:hover {
+  cursor: pointer !important;
+}
+
+.react-flow__edge {
+  cursor: pointer !important;
+}
+
+.react-flow__edge-path {
+  cursor: pointer !important;
+  transition: stroke 200ms ease, stroke-width 200ms ease, opacity 200ms ease;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 2.5px !important;
+}
+
+.react-flow__edge text,
+.react-flow__edge-text,
+.react-flow__edge-label {
+  cursor: pointer !important;
+  user-select: none;
+}
+
+.react-flow__pane {
+  cursor: grab !important;
+}
+
+.react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
+.react-flow__handle {
+  pointer-events: none !important;
+}
+
+/* Hide React Flow Attribution Watermark */
+.react-flow__attribution {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+
