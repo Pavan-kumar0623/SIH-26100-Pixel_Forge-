@@ -83,112 +83,111 @@ export const Dashboard: React.FC<DashboardProps> = ({ tenderId }) => {
   const mediumRisks = risks.filter((r) => r.severity === 'MEDIUM');
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/80 rounded-2xl p-7 text-white border border-slate-800 shadow-2xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-5 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+      <div className="bg-[#111827] rounded-md p-6 text-white border border-[#1e293b] shadow-xl relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-300 text-xs font-semibold mb-3 border border-indigo-500/20">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              ProcureAI Core Online • Gemini 1.5 + Tesseract + Grok
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-[#6366f1]/10 text-[#c0c1ff] text-[11px] font-mono font-semibold mb-3 border border-[#6366f1]/30 uppercase tracking-wide">
+              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse"></span>
+              ProcureAI Vigilance Platform • Active Pipeline
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-100 font-display mb-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-100 font-display mb-1.5">
               Procurement Evaluation & Vigilance Center
             </h1>
-            <p className="text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-400 text-xs leading-relaxed">
               Automated multi-tier verification of tender bids, OCR text extraction, regulatory compliance validation,
               and cross-bidder collusion risk detection.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Link
               to={`/comparison?tenderId=${tenderId}`}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center gap-2"
+              className="px-3.5 py-2 bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium text-xs rounded transition shadow-md flex items-center gap-2"
             >
               <span>Bidder Comparison</span>
-              <ArrowUpRight className="w-4 h-4" />
+              <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
             <Link
               to={`/risk-graph?tenderId=${tenderId}`}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-sm rounded-xl transition flex items-center gap-2"
+              className="px-3.5 py-2 bg-[#1f2937] hover:bg-[#334155] text-slate-200 border border-[#334155] font-medium text-xs rounded transition flex items-center gap-2"
             >
-              <span>Entity Graph</span>
-              <ArrowUpRight className="w-4 h-4" />
+              <span>Entity Network Graph</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 shadow-lg hover:border-slate-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Bidders</span>
-            <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
-              <Building2 className="w-5 h-5" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-[#111827] rounded-md p-4 border border-[#1e293b] shadow-md hover:border-[#334155] transition">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Total Bidders</span>
+            <div className="p-2 bg-[#6366f1]/10 text-[#6366f1] rounded border border-[#6366f1]/20">
+              <Building2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-bold text-slate-100 mb-1 font-display">{bidders.length}</div>
-          <p className="text-xs text-slate-400">Participating in active tender</p>
+          <div className="text-2xl font-bold text-slate-100 mb-0.5 font-mono">{bidders.length}</div>
+          <p className="text-[11px] text-slate-400">Participating in active tender</p>
         </div>
 
-        <div className="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 shadow-lg hover:border-slate-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Verified Compliance</span>
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-              <CheckCircle2 className="w-5 h-5" />
+        <div className="bg-[#111827] rounded-md p-4 border border-[#1e293b] shadow-md hover:border-[#334155] transition">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Verified Compliance</span>
+            <div className="p-2 bg-[#10b981]/10 text-[#10b981] rounded border border-[#10b981]/20">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-bold text-emerald-400 mb-1 font-display">{verifiedCount}</div>
-          <p className="text-xs text-slate-400">Of {totalRequirementsEvaluated || (bidders.length * 6)} evaluation criteria</p>
+          <div className="text-2xl font-bold text-[#10b981] mb-0.5 font-mono">{verifiedCount}</div>
+          <p className="text-[11px] text-slate-400">Of {totalRequirementsEvaluated || (bidders.length * 6)} evaluation criteria</p>
         </div>
 
-        <div className="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 shadow-lg hover:border-slate-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">High Risk Flags</span>
-            <div className="p-2.5 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20">
-              <ShieldAlert className="w-5 h-5" />
+        <div className="bg-[#111827] rounded-md p-4 border border-[#1e293b] shadow-md hover:border-[#334155] transition">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">High Risk Flags</span>
+            <div className="p-2 bg-[#ef4444]/10 text-[#ef4444] rounded border border-[#ef4444]/20">
+              <ShieldAlert className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-bold text-rose-400 mb-1 font-display">{highRisks.length}</div>
-          <p className="text-xs text-rose-400/80 font-medium">Requires immediate committee review</p>
+          <div className="text-2xl font-bold text-[#ef4444] mb-0.5 font-mono">{highRisks.length}</div>
+          <p className="text-[11px] text-[#ef4444] font-mono">Requires committee review</p>
         </div>
 
-        <div className="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 shadow-lg hover:border-slate-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending Action Items</span>
-            <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
-              <Clock className="w-5 h-5" />
+        <div className="bg-[#111827] rounded-md p-4 border border-[#1e293b] shadow-md hover:border-[#334155] transition">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Pending Action Items</span>
+            <div className="p-2 bg-[#f59e0b]/10 text-[#f59e0b] rounded border border-[#f59e0b]/20">
+              <Clock className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-bold text-amber-400 mb-1 font-display">{reviewCount + missingCount}</div>
-          <p className="text-xs text-amber-300/80 font-medium">{missingCount} missing docs, {reviewCount} under review</p>
+          <div className="text-2xl font-bold text-[#f59e0b] mb-0.5 font-mono">{reviewCount + missingCount}</div>
+          <p className="text-[11px] text-[#f59e0b] font-mono">{missingCount} missing docs, {reviewCount} under review</p>
         </div>
       </div>
 
       {/* Main Grid: Bidders Overview + Risk Signals */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Col: Bidders Summary */}
-        <div className="lg:col-span-2 bg-slate-900/90 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="lg:col-span-2 bg-[#111827] rounded-md border border-[#1e293b] p-5 shadow-lg space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#1e293b]">
             <div>
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-indigo-400" />
+              <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2 font-display">
+                <Building2 className="w-4 h-4 text-[#6366f1]" />
                 Participating Bidder Dossiers
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">Live status of submitted documents & compliance</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Live status of submitted documents & statutory compliance</p>
             </div>
             <Link
               to={`/bidders?tenderId=${tenderId}`}
-              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
+              className="text-xs font-semibold text-[#6366f1] hover:text-[#c0c1ff] flex items-center gap-1 transition"
             >
               View All Bidders <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          <div className="divide-y divide-slate-800/80">
+          <div className="divide-y divide-[#1e293b]">
             {bidders.map((bidder) => {
               const bidderCompliance = complianceList.find((c) => String(c.bidder_id) === String(bidder.id));
               const score = bidderCompliance?.summary?.compliance_score ?? 100;
@@ -196,36 +195,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ tenderId }) => {
               const hasHigh = bRisks.some((r) => r.severity === 'HIGH');
 
               return (
-                <div key={bidder.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-800/40 px-3 rounded-xl transition">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-800 text-indigo-300 font-bold flex items-center justify-center text-sm border border-slate-700 font-mono flex-shrink-0">
+                <div key={bidder.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#1f2937]/50 px-2 rounded transition">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-[#1e293b] text-[#c0c1ff] font-bold flex items-center justify-center text-xs border border-[#334155] font-mono flex-shrink-0">
                       {bidder.company_name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">{bidder.company_name}</h3>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 font-mono">
-                        <span>GST: {bidder.gstin || 'Not Disclosed'}</span>
-                        <span>•</span>
-                        <span>PAN: {bidder.pan || 'N/A'}</span>
+                      <h3 className="text-xs font-semibold text-slate-100">{bidder.company_name}</h3>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 font-mono">
+                        <span className="bg-[#1e293b] px-1.5 py-0.5 rounded text-[10px] text-slate-300 border border-[#334155]">GST: {bidder.gstin || 'N/A'}</span>
+                        <span className="bg-[#1e293b] px-1.5 py-0.5 rounded text-[10px] text-slate-300 border border-[#334155]">PAN: {bidder.pan || 'N/A'}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="text-right hidden sm:block">
-                      <div className="text-xs font-semibold text-slate-200">{score}% Compliance</div>
-                      <div className="text-[11px] text-slate-400">
+                    <div className="text-right hidden sm:block font-mono">
+                      <div className="text-xs font-bold text-slate-200">{score}% COMPLIANCE</div>
+                      <div className="text-[10px]">
                         {hasHigh ? (
-                          <span className="text-rose-400 font-medium">Flagged Risks</span>
+                          <span className="text-[#ef4444] font-bold">FLAGGED RISKS</span>
                         ) : (
-                          <span className="text-emerald-400">Verified</span>
+                          <span className="text-[#10b981] font-semibold">VERIFIED</span>
                         )}
                       </div>
                     </div>
 
                     <Link
                       to={`/bidders/${bidder.id}`}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 hover:border-indigo-500 transition"
+                      className="px-3 py-1 bg-[#1f2937] hover:bg-[#6366f1] text-slate-200 hover:text-white rounded text-xs font-medium border border-[#334155] transition font-mono"
                     >
                       Dossier
                     </Link>
@@ -237,50 +235,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ tenderId }) => {
         </div>
 
         {/* Right Col: High Priority Vigilance Risks */}
-        <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-5">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-            <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
+        <div className="bg-[#111827] rounded-md border border-[#1e293b] p-5 shadow-lg space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#1e293b]">
+            <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2 font-display">
+              <AlertTriangle className="w-4 h-4 text-[#f59e0b]" />
               Vigilance & Risk Flags
             </h2>
-            <Link to={`/risk-signals?tenderId=${tenderId}`} className="text-xs font-semibold text-indigo-400 hover:text-indigo-300">
+            <Link to={`/risk-signals?tenderId=${tenderId}`} className="text-xs font-semibold text-[#6366f1] hover:text-[#c0c1ff]">
               View All ({risks.length})
             </Link>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {risks.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">No active risk signals detected.</div>
+              <div className="py-8 text-center text-xs text-slate-400 font-mono">No active risk signals detected.</div>
             ) : (
               risks.slice(0, 5).map((risk, idx) => (
                 <div
                   key={risk.id || idx}
-                  className={`p-3.5 rounded-xl border text-xs ${
+                  className={`p-3 rounded border text-xs ${
                     risk.severity === 'HIGH'
-                      ? 'bg-rose-950/30 border-rose-800/50 text-rose-200'
+                      ? 'bg-[#ef4444]/10 border-[#ef4444]/40 text-slate-200'
                       : risk.severity === 'MEDIUM'
-                      ? 'bg-amber-950/30 border-amber-800/50 text-amber-200'
-                      : 'bg-slate-800/60 border-slate-700/60 text-slate-300'
+                      ? 'bg-[#f59e0b]/10 border-[#f59e0b]/40 text-slate-200'
+                      : 'bg-[#1e293b] border-[#334155] text-slate-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold uppercase tracking-wider text-[11px]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold uppercase tracking-wider text-[10px] font-mono">
                       {risk.risk_type.replace(/_/g, ' ')}
                     </span>
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
                         risk.severity === 'HIGH'
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          ? 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/40'
                           : risk.severity === 'MEDIUM'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          ? 'bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40'
                           : 'bg-slate-700 text-slate-300'
                       }`}
                     >
                       {risk.severity}
                     </span>
                   </div>
-                  <p className="leading-relaxed mb-2 font-normal opacity-90">{risk.description}</p>
-                  <div className="text-[10px] opacity-75 font-mono">{risk.bidder_name || 'Participating Entity'}</div>
+                  <p className="leading-relaxed mb-1.5 opacity-90 text-[11px] font-normal">{risk.description}</p>
+                  <div className="text-[10px] text-slate-400 font-mono uppercase">{risk.bidder_name || 'Participating Entity'}</div>
                 </div>
               ))
             )}

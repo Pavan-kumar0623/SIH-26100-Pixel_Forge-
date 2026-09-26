@@ -182,21 +182,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] lg:w-[540px] bg-slate-900 border-l border-slate-700 shadow-2xl flex flex-col transform transition-transform duration-300">
+    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] lg:w-[540px] bg-[#0b0f19] border-l border-[#1e293b] shadow-2xl flex flex-col transform transition-transform duration-300">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-800 bg-slate-950/70 backdrop-blur-sm flex items-center justify-between">
+      <div className="px-5 py-3.5 border-b border-[#1e293b] bg-[#111827] flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 rounded bg-[#6366f1] flex items-center justify-center shadow-md shadow-indigo-600/30">
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h2 className="font-semibold text-slate-100 tracking-tight">ProcureAI Assistant</h2>
-              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <h2 className="font-bold text-slate-100 text-sm font-display tracking-tight">ProcureAI Assistant</h2>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#6366f1]/20 text-[#c0c1ff] border border-[#6366f1]/30 uppercase">
                 Grok / xAI
               </span>
             </div>
-            <p className="text-xs text-slate-400">Verifiable Procurement & Vigilance AI</p>
+            <p className="text-[11px] text-slate-400 font-mono">Verifiable Procurement & Vigilance AI</p>
           </div>
         </div>
 
@@ -204,14 +204,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <button
             onClick={handleResetSession}
             title="Reset Conversation Memory"
-            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-md transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-[#1f2937] rounded transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
           <button
             onClick={onClose}
             title="Close Assistant"
-            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-md transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-[#1f2937] rounded transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -219,28 +219,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Active Context Bar */}
-      <div className="px-5 py-2 bg-slate-950/40 border-b border-slate-800/80 text-xs flex items-center justify-between text-slate-400">
+      <div className="px-5 py-2 bg-[#111827]/70 border-b border-[#1e293b] text-xs flex items-center justify-between text-slate-400 font-mono">
         <div className="flex items-center space-x-2 overflow-hidden truncate">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="font-medium text-slate-300">Context:</span>
+          <span className="inline-block w-2 h-2 rounded-full bg-[#10b981] animate-pulse"></span>
+          <span className="font-semibold text-slate-300">CONTEXT:</span>
           {activeBidderName ? (
-            <span className="truncate text-indigo-300 font-medium">Bidder: {activeBidderName}</span>
+            <span className="truncate text-[#c0c1ff] font-semibold">BIDDER: {activeBidderName}</span>
           ) : activeTenderTitle ? (
-            <span className="truncate text-slate-300">Tender: {activeTenderTitle}</span>
+            <span className="truncate text-slate-300">TENDER: {activeTenderTitle}</span>
           ) : (
-            <span className="text-slate-500 italic">Global Tender Database</span>
+            <span className="text-slate-500 uppercase">Global Tender Database</span>
           )}
         </div>
       </div>
 
       {/* Quick Action Chips */}
-      <div className="px-4 py-2 border-b border-slate-800/60 bg-slate-900/50 flex items-center space-x-2 overflow-x-auto no-scrollbar">
+      <div className="px-4 py-2 border-b border-[#1e293b] bg-[#0b0f19] flex items-center space-x-2 overflow-x-auto no-scrollbar">
         {quickActions.map((qa) => (
           <button
             key={qa.id}
             onClick={() => handleSend(qa.prompt)}
             disabled={loading}
-            className="whitespace-nowrap text-xs px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-indigo-900/40 text-slate-300 hover:text-indigo-200 border border-slate-700 hover:border-indigo-500/50 transition-all flex items-center space-x-1"
+            className="whitespace-nowrap text-[11px] px-2.5 py-1 rounded bg-[#111827] hover:bg-[#6366f1]/20 text-slate-300 hover:text-[#c0c1ff] border border-[#334155] hover:border-[#6366f1] transition-all font-mono"
           >
             <span>{qa.label}</span>
           </button>
@@ -254,17 +254,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             key={msg.id}
             className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
-            <div className="flex items-center space-x-2 mb-1 px-1">
+            <div className="flex items-center space-x-2 mb-1 px-1 font-mono">
               {msg.role === 'assistant' ? (
                 <>
-                  <Bot className="w-3.5 h-3.5 text-indigo-400" />
-                  <span className="text-[11px] font-medium text-slate-400">
+                  <Bot className="w-3.5 h-3.5 text-[#6366f1]" />
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase">
                     {msg.model_used || 'ProcureAI'}
                   </span>
                 </>
               ) : (
                 <>
-                  <span className="text-[11px] font-medium text-slate-400">Officer</span>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase">Officer</span>
                   <User className="w-3.5 h-3.5 text-slate-400" />
                 </>
               )}
@@ -272,20 +272,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
 
             <div
-              className={`max-w-[92%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
+              className={`max-w-[92%] rounded px-4 py-3 text-xs leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                  : 'bg-slate-800/90 text-slate-200 border border-slate-700/80 shadow-md'
+                  ? 'bg-[#6366f1] text-white shadow-md'
+                  : 'bg-[#111827] text-slate-200 border border-[#1e293b] shadow-md'
               }`}
             >
               <div className="whitespace-pre-wrap">{msg.content}</div>
 
               {/* Source Citations */}
               {msg.sources && msg.sources.length > 0 && (
-                <div className="mt-3 pt-2.5 border-t border-slate-700/60">
+                <div className="mt-3 pt-2.5 border-t border-[#1e293b]">
                   <button
                     onClick={() => toggleSources(msg.id)}
-                    className="flex items-center justify-between w-full text-xs font-medium text-indigo-300 hover:text-indigo-200 transition-colors"
+                    className="flex items-center justify-between w-full text-[11px] font-mono font-semibold text-[#c0c1ff] hover:text-white transition-colors"
                   >
                     <span className="flex items-center space-x-1.5">
                       <FileText className="w-3.5 h-3.5" />
@@ -303,13 +303,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                       {msg.sources.map((src, i) => (
                         <div
                           key={i}
-                          className="p-2 rounded bg-slate-900/80 border border-slate-700/60 text-xs flex items-start space-x-2"
+                          className="p-2 rounded bg-[#0b0f19] border border-[#1e293b] text-xs flex items-start space-x-2 font-mono"
                         >
                           <div className="mt-0.5">{getSourceIcon(src.type)}</div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-slate-200 truncate">{src.label}</p>
+                            <p className="font-semibold text-slate-200 truncate text-[11px]">{src.label}</p>
                             {src.snippet && (
-                              <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">
+                              <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">
                                 {src.snippet}
                               </p>
                             )}
@@ -325,12 +325,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         ))}
 
         {loading && (
-          <div className="flex items-start space-x-3">
-            <div className="w-7 h-7 rounded-lg bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300">
+          <div className="flex items-start space-x-3 font-mono">
+            <div className="w-7 h-7 rounded bg-[#6366f1]/20 border border-[#6366f1]/40 flex items-center justify-center text-[#6366f1]">
               <Bot className="w-4 h-4 animate-spin" />
             </div>
-            <div className="bg-slate-800 rounded-xl px-4 py-3 border border-slate-700 text-xs text-slate-400 flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+            <div className="bg-[#111827] rounded px-3.5 py-2.5 border border-[#1e293b] text-xs text-slate-400 flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-[#6366f1] animate-ping"></span>
               <span>Grounding query with live procurement records...</span>
             </div>
           </div>
@@ -340,7 +340,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Input Form */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/80 backdrop-blur-sm">
+      <div className="p-4 border-t border-[#1e293b] bg-[#111827]">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -360,18 +360,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               }
             }}
             placeholder="Ask Grok about compliance gaps, bidder risks, cartelization..."
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none pr-12"
+            className="w-full bg-[#0b0f19] border border-[#1e293b] rounded px-3.5 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#6366f1] resize-none pr-10 font-mono"
           />
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white transition-colors shadow-md"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-40 text-white transition-colors shadow"
             title="Send query"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-3.5 h-3.5" />
           </button>
         </form>
-        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+        <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500 font-mono">
           <span>Press Enter to send, Shift+Enter for new line</span>
           <span>xAI Grok Grounded Evaluation</span>
         </div>

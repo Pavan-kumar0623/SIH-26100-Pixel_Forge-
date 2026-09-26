@@ -119,9 +119,10 @@ export interface EntityNode {
   id: string;
   label?: string;
   type?: string;
-  data?: any;
-  position?: { x: number; y: number };
+  data: Record<string, any>;
+  position: { x: number; y: number };
   source?: string;
+  style?: React.CSSProperties | Record<string, any>;
 }
 
 export interface RelationshipEdge {
@@ -133,13 +134,31 @@ export interface RelationshipEdge {
   requires_review?: boolean;
   animated?: boolean;
   type?: string;
-  style?: Record<string, any>;
-  data?: any;
+  style?: React.CSSProperties | Record<string, any>;
+  data?: Record<string, any>;
+}
+
+export interface GraphSummary {
+  total_nodes: number;
+  total_edges: number;
+  flagged_nodes: number;
+  flagged_relationships: number;
+  high_risk_signals: number;
+  entities_requiring_review: number;
 }
 
 export interface GraphData {
+  tender?: {
+    id: number | string;
+    tender_id: string;
+    title: string;
+    category?: string;
+    status: string;
+  };
+  summary?: GraphSummary;
   nodes: EntityNode[];
   edges: RelationshipEdge[];
+  risk_signals?: RiskSignal[];
 }
 
 export interface BidderComparisonRow {

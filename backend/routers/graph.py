@@ -7,7 +7,7 @@ router = APIRouter(tags=["Graph"])
 
 
 @router.get("/api/tenders/{tender_id}/graph")
-def get_tender_graph(tender_id: int, db: Session = Depends(get_db)):
+def get_tender_graph(tender_id: str, db: Session = Depends(get_db)):
     """Get full procurement risk graph data for React Flow."""
     graph_data = build_graph_entities(tender_id, db)
     return graph_data
