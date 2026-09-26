@@ -69,8 +69,12 @@ export const uploadDocument = (bidderId: string | number, file: File): Promise<a
 export const getEvidence = (documentId: string | number): Promise<any> =>
   api.get(`/api/documents/${documentId}/evidence`).then((res) => res.data);
 
+export const getGroqDiagnostic = (documentId: string | number): Promise<any> =>
+  api.get(`/api/documents/${documentId}/groq-diagnostic`).then((res) => res.data);
+
 export const reprocessDocument = (documentId: string | number): Promise<any> =>
   api.post(`/api/documents/${documentId}/process`).then((res) => res.data);
+
 
 // Compliance API
 export const getBidderCompliance = (bidderId: string | number): Promise<ComplianceEvaluation> =>

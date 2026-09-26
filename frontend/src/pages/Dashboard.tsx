@@ -193,6 +193,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ tenderId }) => {
               const score = bidderCompliance?.summary?.compliance_score ?? 100;
               const bRisks = risks.filter((r) => String(r.bidder_id) === String(bidder.id));
               const hasHigh = bRisks.some((r) => r.severity === 'HIGH');
+              
+              let isNewlyAdded = false;
+              try {
+                const stored = JSON.parse(localStorage.getItem('newly_added_bidders') || '[]');
+                isNewlyAdded = stored.includes(bidder.id);
+              } catch (e) {}
 
               return (
                 <div key={bidder.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#1f2937]/50 px-2 rounded transition">
@@ -201,7 +207,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ tenderId }) => {
                       {bidder.company_name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="text-xs font-semibold text-slate-100">{bidder.company_name}</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-xs font-semibold text-slate-100">{bidder.company_name}</h3>
+                        {isNewlyAdded && (
+                          <span className="px-1.5 py-0.2 bg-gradient-to-r from-indigo-500/20 to-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded text-[9px] font-bold font-mono animate-pulse">
+                            ✨ NEWLY ADDED
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 font-mono">
                         <span className="bg-[#1e293b] px-1.5 py-0.5 rounded text-[10px] text-slate-300 border border-[#334155]">GST: {bidder.gstin || 'N/A'}</span>
                         <span className="bg-[#1e293b] px-1.5 py-0.5 rounded text-[10px] text-slate-300 border border-[#334155]">PAN: {bidder.pan || 'N/A'}</span>

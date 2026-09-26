@@ -200,3 +200,17 @@ h2 {{ color: #e2e8f0; margin-top: 0; font-size: 1.1rem; display: flex; align-ite
         media_type=media_type,
         content_disposition_type=disposition
     )
+
+
+@router.get("/api/documents/{document_id}/groq-diagnostic")
+async def get_document_groq_diagnostic(document_id: int, db: Session = Depends(get_db)):
+    """Generate or retrieve real-time Groq AI diagrammatic traffic-light diagnostics and risk deduction rule."""
+    from services.groq_service import generate_groq_document_diagnostic
+    try:
+        data = await generate_groq_document_diagnostic(document_id, db)
+        return data
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Groq diagnostic failed: {str(e)}")
+

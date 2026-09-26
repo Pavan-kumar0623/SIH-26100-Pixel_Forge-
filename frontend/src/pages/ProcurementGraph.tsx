@@ -549,17 +549,17 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
   }
 
   // 2. Level 2: Bidder Company Nodes
-  const bidderXMap: Record<number | string, number> = {};
+  const bidderXMap: Record<string, number> = {};
   companies.forEach((comp, idx) => {
     const colX = START_X + idx * COLUMN_WIDTH;
-    const bId = comp.data?.bidder_id ?? idx;
+    const bId = String(comp.data?.bidder_id ?? idx);
     bidderXMap[bId] = colX;
     nodePositions[comp.id] = { x: colX - 135, y: 260 };
   });
 
   // Track children for each bidder
   const bidderChildren: Record<
-    number | string,
+    string,
     {
       identifiers: Node[];
       persons: Node[];
@@ -571,8 +571,8 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
     }
   > = {};
 
-  companies.forEach((comp) => {
-    const bId = comp.data?.bidder_id ?? '';
+  companies.forEach((comp, idx) => {
+    const bId = String(comp.data?.bidder_id ?? idx);
     bidderChildren[bId] = {
       identifiers: [],
       persons: [],
@@ -586,14 +586,14 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
 
   const sharedPersons: Node[] = [];
 
-  otherNodes.forEach((node) => {
+  otherNodes.forEach((node: any) => {
     if (node.type === 'person' && node.data?.is_shared) {
       sharedPersons.push(node);
       return;
     }
 
-    const bId = node.data?.bidder_id;
-    if (bId !== undefined && bidderChildren[bId]) {
+    const bId = node.data?.bidder_id !== undefined && node.data?.bidder_id !== null ? String(node.data.bidder_id) : '';
+    if (bId && bidderChildren[bId]) {
       if (node.type === 'identifier') bidderChildren[bId].identifiers.push(node);
       else if (node.type === 'person') bidderChildren[bId].persons.push(node);
       else if (node.type === 'document') bidderChildren[bId].documents.push(node);
@@ -603,11 +603,13 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
       else bidderChildren[bId].others.push(node);
     } else {
       const connectedEdge = rawEdges.find((e) => e.target === node.id || e.source === node.id);
-      let foundBidderId: any = null;
+      let foundBidderId = '';
       if (connectedEdge) {
         const otherId = connectedEdge.source === node.id ? connectedEdge.target : connectedEdge.source;
         const comp = companies.find((c) => c.id === otherId);
-        if (comp) foundBidderId = comp.data?.bidder_id;
+        if (comp && comp.data?.bidder_id !== undefined && comp.data?.bidder_id !== null) {
+          foundBidderId = String(comp.data.bidder_id);
+        }
       }
       if (foundBidderId && bidderChildren[foundBidderId]) {
         if (node.type === 'identifier') bidderChildren[foundBidderId].identifiers.push(node);
@@ -622,9 +624,9 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
   });
 
   // Lay out each bidder's sub-entities in strict vertical tiers with zero overlap
-  companies.forEach((comp) => {
-    const bId = comp.data?.bidder_id ?? '';
-    const colX = bidderXMap[bId];
+  companies.forEach((comp, idx) => {
+    const bId = String(comp.data?.bidder_id ?? idx);
+    const colX = bidderXMap[bId] ?? (START_X + idx * COLUMN_WIDTH);
     const ch = bidderChildren[bId];
     if (!ch) return;
 
@@ -633,9 +635,9 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
     const t3Count = tier3Nodes.length;
     const t3Spacing = 160;
     const t3StartX = colX - ((t3Count - 1) * t3Spacing) / 2;
-    tier3Nodes.forEach((node, idx) => {
+    tier3Nodes.forEach((node: any, nIdx: number) => {
       nodePositions[node.id] = {
-        x: t3StartX + idx * t3Spacing - 75,
+        x: t3StartX + nIdx * t3Spacing - 75,
         y: 480,
       };
     });
@@ -645,21 +647,21 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
     const t4Projects = ch.projects;
     const docSpacing = 170;
     const docStartX = colX - 180;
-    t4Docs.forEach((doc, idx) => {
+    t4Docs.forEach((doc: any, dIdx: number) => {
       nodePositions[doc.id] = {
-        x: docStartX + idx * docSpacing,
+        x: docStartX + dIdx * docSpacing,
         y: 700,
       };
     });
-    t4Projects.forEach((proj, idx) => {
+    t4Projects.forEach((proj: any, pIdx: number) => {
       nodePositions[proj.id] = {
-        x: colX + 110 + idx * 170,
+        x: colX + 110 + pIdx * 170,
         y: 700,
       };
     });
 
     // ── LEVEL 5 (Y = 920): Addresses & OEM Partners
-    ch.addresses.forEach((addr) => {
+    ch.addresses.forEach((addr: any) => {
       if (addr.data?.is_inconsistent) {
         nodePositions[addr.id] = {
           x: colX - 110,
@@ -673,16 +675,16 @@ function computeSpaciousLayout(rawNodes: Node[], rawEdges: Edge[]): Node[] {
       }
     });
 
-    ch.oems.forEach((oem, idx) => {
+    ch.oems.forEach((oem: any, oIdx: number) => {
       nodePositions[oem.id] = {
-        x: colX + 100 + idx * 160,
+        x: colX + 100 + oIdx * 160,
         y: 920,
       };
     });
 
-    ch.others.forEach((oth, idx) => {
+    ch.others.forEach((oth: any, otIdx: number) => {
       nodePositions[oth.id] = {
-        x: colX - 100 + idx * 140,
+        x: colX - 100 + otIdx * 140,
         y: 1160,
       };
     });

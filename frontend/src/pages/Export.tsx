@@ -1,12 +1,20 @@
-import React from 'react';
-import { Download, FileSpreadsheet, FileText, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
-import { exportCsvUrl, exportExcelUrl } from '../api/client';
+import React, { useEffect, useState } from 'react';
+import { Download, FileSpreadsheet, FileText, CheckCircle2, Building2, Sparkles } from 'lucide-react';
+import { exportCsvUrl, exportExcelUrl, getBidders } from '../api/client';
+import type { Bidder } from '../types';
 
 interface ExportProps {
   tenderId: string;
 }
 
 export const Export: React.FC<ExportProps> = ({ tenderId }) => {
+  const [bidders, setBidders] = useState<Bidder[]>([]);
+
+  useEffect(() => {
+    if (!tenderId) return;
+    getBidders(tenderId).then((data) => setBidders(data || [])).catch(() => {});
+  }, [tenderId]);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Page Header */}
@@ -41,7 +49,7 @@ export const Export: React.FC<ExportProps> = ({ tenderId }) => {
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Direct tabular download</span>
+                <span>Direct tabular download ({bidders.length} bidders included)</span>
               </li>
             </ul>
           </div>
@@ -91,6 +99,44 @@ export const Export: React.FC<ExportProps> = ({ tenderId }) => {
             <Download className="w-4 h-4" />
             <span>Download Multi-Sheet Excel (.xlsx)</span>
           </a>
+        </div>
+      </div>
+
+      {/* Live Roster of Included Entities */}
+      <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-5 space-y-3 shadow-lg">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-100 font-mono">
+            <Building2 className="w-4 h-4 text-indigo-400" />
+            <span>ENTITIES INCLUDED IN EXPORT ({bidders.length})</span>
+          </div>
+          <span className="text-[10px] text-emerald-400 font-mono font-semibold">● Live Database Sync</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+          {bidders.map((b) => {
+            let isNewlyAdded = false;
+            try {
+              const stored = JSON.parse(localStorage.getItem('newly_added_bidders') || '[]');
+              isNewlyAdded = stored.includes(b.id);
+            } catch (e) {}
+
+            return (
+              <div
+                key={b.id}
+                className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-2"
+              >
+                <div className="overflow-hidden">
+                  <div className="text-xs font-semibold text-slate-200 truncate">{b.company_name}</div>
+                  <div className="text-[10px] text-slate-500 font-mono">ID #{b.id} • {b.gstin || 'No GST'}</div>
+                </div>
+                {isNewlyAdded && (
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-mono font-bold flex-shrink-0 animate-pulse">
+                    ✨ NEW
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

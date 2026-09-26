@@ -14,15 +14,25 @@ import {
   ShieldAlert,
   Info,
   HelpCircle,
-  MessageSquare,
   Building,
   Plus,
   X,
   AlertTriangle,
-  Check
+  Check,
+  Zap,
+  Activity,
+  ArrowRight
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { getBidders, getDocuments, uploadDocument, getEvidence, reprocessDocument, createBidder } from '../api/client';
+import {
+  getBidders,
+  getDocuments,
+  uploadDocument,
+  getEvidence,
+  reprocessDocument,
+  createBidder,
+  getGroqDiagnostic
+} from '../api/client';
 import type { Bidder, DocumentItem, ExtractedField } from '../types';
 
 interface DocumentVerificationProps {
@@ -70,12 +80,13 @@ const EXPECTED_FIELDS_BY_TYPE: Record<string, { label: string; key: string }[]> 
   ],
 };
 
-// Speedometer Gauge Component for Document Risk Level
-const RiskGauge: React.FC<{ score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; label?: string }> = ({
-  score,
-  level,
-  label = 'Document Risk Speedometer',
-}) => {
+// Speedometer Gauge Component for Document Risk Level with explicit mathematical rule
+const RiskGauge: React.FC<{
+  score: number;
+  level: 'LOW' | 'MEDIUM' | 'HIGH';
+  label?: string;
+  formula?: string;
+}> = ({ score, level, label = 'Proportional Risk Speedometer', formula }) => {
   const colorClass =
     level === 'HIGH'
       ? '#ef4444'
@@ -97,7 +108,7 @@ const RiskGauge: React.FC<{ score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; lab
   const arcFill = (clampedScore / 100) * arcLen;
 
   return (
-    <div className="flex flex-col items-center justify-center p-3.5 bg-[#0b0f19] rounded-lg border border-[#1e293b] shadow-inner">
+    <div className="flex flex-col items-center justify-center p-3.5 bg-[#0b0f19] rounded-lg border border-[#1e293b] shadow-inner w-full">
       <div className="relative w-36 h-20 flex items-end justify-center overflow-hidden">
         <svg width="130" height="74" viewBox="0 0 120 72">
           {/* Background arc track */}
@@ -147,7 +158,7 @@ const RiskGauge: React.FC<{ score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; lab
         </svg>
       </div>
 
-      <div className="mt-1 text-center">
+      <div className="mt-1 text-center w-full">
         <div className="text-[10px] uppercase font-mono font-bold text-slate-400 tracking-wider">{label}</div>
         <div className="flex items-center gap-1.5 justify-center mt-0.5">
           <span
@@ -161,10 +172,24 @@ const RiskGauge: React.FC<{ score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; lab
             {level} RISK
           </span>
         </div>
+        {formula && (
+          <div className="mt-2 pt-1.5 border-t border-[#1e293b] text-[9px] font-mono text-slate-400 text-center leading-tight">
+            {formula}
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
+// Required statutory procurement document types
+const MANDATORY_BIDDER_DOCS = [
+  { type: 'GST_CERTIFICATE', label: 'GST Registration Certificate', reason: 'Mandatory statutory tax registration' },
+  { type: 'PAN_CARD', label: 'Permanent Account Number (PAN) Card', reason: 'Statutory income tax identification' },
+  { type: 'UDYAM_CERTIFICATE', label: 'Udyam / MSME Certificate', fallbackType: 'INCORPORATION_CERTIFICATE', fallbackLabel: 'Certificate of Incorporation', reason: 'Corporate or MSME legal identity' },
+  { type: 'EXPERIENCE_CERTIFICATE', label: 'Work Experience / PO Certificate', fallbackType: 'TECHNICAL_DOCUMENT', fallbackLabel: 'Technical Specifications', reason: 'Technical qualification & track record' },
+  { type: 'FINANCIAL_DOCUMENT', label: 'Audited Financials / Turnover Statement', reason: 'Financial capability & annual turnover' },
+];
 
 export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tenderId }) => {
   const [searchParams] = useSearchParams();
@@ -175,6 +200,8 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [docEvidence, setDocEvidence] = useState<any>(null);
+  const [groqDiagnostic, setGroqDiagnostic] = useState<any>(null);
+  const [loadingGroq, setLoadingGroq] = useState(false);
   const [evidenceModal, setEvidenceModal] = useState<{ open: boolean; field?: ExtractedField }>({ open: false });
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
@@ -183,6 +210,10 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
   const [newCompanyName, setNewCompanyName] = useState('');
   const [creatingBidder, setCreatingBidder] = useState(false);
 
+  // Sync to Dossier / Dashboards modal state
+  const [syncSuccessModalOpen, setSyncSuccessModalOpen] = useState(false);
+  const [syncedBidderName, setSyncedBidderName] = useState('');
+
   // Track newly uploaded documents in this browser session
   const [newlyUploadedDocIds, setNewlyUploadedDocIds] = useState<Set<number>>(new Set());
 
@@ -190,7 +221,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
   const [loadingEvidence, setLoadingEvidence] = useState(false);
 
   // Poll controller
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pollTimerRef = useRef<any>(null);
 
   const refreshBiddersList = async () => {
     if (!tenderId) return;
@@ -230,15 +261,29 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
             if (statusChanged) {
               const evidence = await getEvidence(updated.id);
               setDocEvidence(evidence);
+              fetchGroqAiDiagnostic(updated.id);
             }
           }
         }
       } else {
         setSelectedDoc(null);
         setDocEvidence(null);
+        setGroqDiagnostic(null);
       }
     } catch (err) {
       console.error('Failed to load bidder documents:', err);
+    }
+  };
+
+  const fetchGroqAiDiagnostic = async (docId: number | string) => {
+    setLoadingGroq(true);
+    try {
+      const res = await getGroqDiagnostic(docId);
+      setGroqDiagnostic(res);
+    } catch (e) {
+      console.error('Failed to fetch Groq diagnostic:', e);
+    } finally {
+      setLoadingGroq(false);
     }
   };
 
@@ -274,6 +319,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
     try {
       const evidence = await getEvidence(doc.id);
       setDocEvidence(evidence);
+      fetchGroqAiDiagnostic(doc.id);
     } catch (err) {
       console.error('Failed to load evidence for document:', err);
       setDocEvidence(null);
@@ -289,12 +335,24 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
     // Instantly wipe previous document data so stale information disappears immediately
     setSelectedDoc(null);
     setDocEvidence(null);
+    setGroqDiagnostic(null);
     setUploading(true);
 
     try {
       const uploaded = await uploadDocument(selectedBidderId, file);
       if (uploaded?.id) {
         setNewlyUploadedDocIds((prev) => new Set(prev).add(uploaded.id));
+      }
+
+      // Mark this bidder in localStorage as active/newly added
+      try {
+        const stored = JSON.parse(localStorage.getItem('newly_added_bidders') || '[]');
+        if (!stored.includes(parseInt(selectedBidderId, 10))) {
+          stored.push(parseInt(selectedBidderId, 10));
+          localStorage.setItem('newly_added_bidders', JSON.stringify(stored));
+        }
+      } catch (e) {
+        console.error(e);
       }
 
       // Allow background OCR & Gemini extraction to initialize
@@ -343,6 +401,16 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
       await refreshBiddersList();
       if (newBidder?.id) {
         setSelectedBidderId(String(newBidder.id));
+        // Save to newly added list
+        try {
+          const stored = JSON.parse(localStorage.getItem('newly_added_bidders') || '[]');
+          if (!stored.includes(newBidder.id)) {
+            stored.push(newBidder.id);
+            localStorage.setItem('newly_added_bidders', JSON.stringify(stored));
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }
       setShowAddBidderModal(false);
       setNewCompanyName('');
@@ -350,6 +418,22 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
       console.error('Failed to create bidder:', err);
     } finally {
       setCreatingBidder(false);
+    }
+  };
+
+  // Trigger Sync Bidder across all dashboards
+  const handleSyncBidderAcrossSystem = () => {
+    if (!selectedBidder) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem('newly_added_bidders') || '[]');
+      if (!stored.includes(selectedBidder.id)) {
+        stored.push(selectedBidder.id);
+        localStorage.setItem('newly_added_bidders', JSON.stringify(stored));
+      }
+      setSyncedBidderName(selectedBidder.company_name);
+      setSyncSuccessModalOpen(true);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -368,7 +452,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
     ['gstin', 'pan', 'cin', 'udyam_number', 'registration_number', 'tin'].includes(f.field_name.toLowerCase())
   );
 
-  // Missing and invalid fields analysis
+  // Missing and invalid fields analysis within the current document
   const expectedSpec = EXPECTED_FIELDS_BY_TYPE[selectedDoc?.document_type || ''] || [];
   const existingFieldNames = fields.map((f) => f.field_name.toLowerCase());
   const missingFields = expectedSpec.filter(
@@ -377,43 +461,64 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
 
   const invalidFields = fields.filter((f) => f.validation_status === 'INVALID' || f.validation_status === 'EXPIRED');
 
-  // Dynamic Risk Calculation for the current document uploaded
+  // Missing required statutory documents for this bidder
+  const submittedDocTypes = (documents || []).map((d) => (d.document_type || '').toUpperCase());
+  const missingMandatoryDocs = MANDATORY_BIDDER_DOCS.filter((req) => {
+    const hasPrimary = submittedDocTypes.some((t) => t.includes(req.type));
+    const hasFallback = req.fallbackType ? submittedDocTypes.some((t) => t.includes(req.fallbackType)) : false;
+    return !hasPrimary && !hasFallback;
+  });
+
+  // Dynamic, Uniform Risk Calculation following strict mathematical proportionality
   const calculateDocRisk = () => {
-    if (!selectedDoc) return { score: 10, level: 'LOW' as const, reasons: ['No document selected'] };
-    let score = 15;
+    if (!selectedDoc) {
+      return {
+        score: 5,
+        level: 'LOW' as const,
+        reasons: ['No document active'],
+        formula: 'Baseline Clean: 5%',
+      };
+    }
+    
+    // Proportional Base Rule
+    const baseRisk = 5;
+    const missingDocsPenalty = missingMandatoryDocs.length * 15; // 15% per missing document
+    const invalidFieldsPenalty = invalidFields.length * 15; // 15% per invalid field
+    const missingFieldsPenalty = missingFields.length * 5; // 5% per missing parameter
+
+    let calculatedScore = baseRisk + missingDocsPenalty + invalidFieldsPenalty + missingFieldsPenalty;
     const reasons: string[] = [];
 
     if (selectedDoc.status === 'FAILED') {
-      return { score: 95, level: 'HIGH' as const, reasons: ['Document OCR parsing or file format decode failed'] };
-    }
-    if (selectedDoc.status === 'UNSUPPORTED') {
-      return { score: 80, level: 'HIGH' as const, reasons: ['Unrecognized document category — unsupported for procurement'] };
-    }
-    if (invalidFields.length > 0) {
-      score += invalidFields.length * 30;
-      invalidFields.forEach((f) =>
-        reasons.push(`${f.field_name.toUpperCase()}: ${f.validation_message || 'Format check failed'}`)
-      );
-    }
-    if (missingFields.length > 0) {
-      score += missingFields.length * 15;
-      reasons.push(`${missingFields.length} expected mandatory parameter(s) missing from document text`);
-    }
-    if (
-      selectedDoc.status === 'NEEDS_REVIEW' ||
-      (selectedDoc.classification_confidence && selectedDoc.classification_confidence < 0.75)
-    ) {
-      score += 20;
-      reasons.push('Low OCR extraction confidence — vigilance review recommended');
+      calculatedScore = Math.max(calculatedScore, 90);
+      reasons.push('Document OCR parsing or file format decode failed');
     }
 
-    score = Math.min(Math.max(score, 10), 100);
-    const level = score >= 65 ? ('HIGH' as const) : score >= 35 ? ('MEDIUM' as const) : ('LOW' as const);
-    return { score, level, reasons };
+    if (invalidFields.length > 0) {
+      invalidFields.forEach((f) =>
+        reasons.push(`${f.field_name.toUpperCase()} check failed: ${f.validation_message || 'Invalid format pattern'}`)
+      );
+    }
+
+    if (missingMandatoryDocs.length > 0) {
+      missingMandatoryDocs.forEach((md) => {
+        reasons.push(`Missing mandatory statutory doc: ${md.label}`);
+      });
+    }
+
+    if (missingFields.length > 0) {
+      reasons.push(`${missingFields.length} expected parameter(s) missing from document`);
+    }
+
+    const score = Math.min(Math.max(calculatedScore, 5), 100);
+    const level = score >= 60 ? ('HIGH' as const) : score >= 30 ? ('MEDIUM' as const) : ('LOW' as const);
+    const formula = `Rule: 5% (Base) + [${missingMandatoryDocs.length} Missing Docs × 15%] + [${invalidFields.length} Invalid Fields × 15%] = ${score}%`;
+
+    return { score, level, reasons, formula };
   };
 
   const riskInfo = calculateDocRisk();
-  const isNewlyUploaded = selectedDoc ? newlyUploadedDocIds.has(selectedDoc.id) : false;
+  const isNewlyUploaded = selectedDoc ? newlyUploadedDocIds.has(Number(selectedDoc.id)) : false;
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
@@ -421,11 +526,11 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#1e293b]">
         <div>
           <h1 className="text-xl font-bold text-slate-100 font-display flex items-center gap-2.5">
-            <FileSearch className="w-5 h-5 text-[#6366f1]" />
-            Document Ingestion & Evidence OCR
+            <Zap className="w-5 h-5 text-amber-400" />
+            Document Verification & Groq AI Diagnostics
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Real-time digital PyMuPDF extraction, Tesseract OCR fallback, and structured parameter anomaly detection.
+            Real-time PyMuPDF extraction, Groq LPU™ traffic-light evaluation, and proportional compliance risk scoring.
           </p>
         </div>
 
@@ -455,25 +560,25 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
         </div>
       </div>
 
-      {/* Main Grid: Upload & Doc List (Left) vs Extracted Fields Panel (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Upload box & submitted documents list */}
-        <div className="space-y-4">
+      {/* Main Grid: Upload & Live Groq AI Traffic Light Panel (Left) vs Evidence Matrix (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column (5 Cols): Upload Box, Document Switcher, & Live Inline Groq AI Traffic Light Diagnostic */}
+        <div className="lg:col-span-5 space-y-4">
           {/* Upload Dropzone */}
-          <div className="bg-[#111827] rounded-lg border border-dashed border-[#334155] hover:border-[#6366f1] p-5 text-center transition shadow-md">
-            <Upload className="w-7 h-7 text-[#6366f1] mx-auto mb-2 animate-bounce" />
-            <h3 className="font-bold text-slate-200 text-xs mb-1 font-display">Upload Document for Analysis</h3>
-            <p className="text-[11px] text-slate-400 mb-3 font-mono">PDF, PNG, JPG (GST, PAN, Audits, Certificates)</p>
+          <div className="bg-[#111827] rounded-lg border border-dashed border-[#334155] hover:border-[#6366f1] p-4 text-center transition shadow-md">
+            <Upload className="w-6 h-6 text-[#6366f1] mx-auto mb-1.5 animate-bounce" />
+            <h3 className="font-bold text-slate-200 text-xs mb-0.5 font-display">Upload Document for Real-Time Analysis</h3>
+            <p className="text-[10px] text-slate-400 mb-2.5 font-mono">PDF, PNG, JPG (GST, PAN, Udyam, Audits, Work Orders)</p>
             <label className="cursor-pointer px-4 py-2 bg-[#6366f1] hover:bg-[#4f46e5] text-white rounded font-medium text-xs transition inline-flex items-center gap-2 shadow-lg">
               {uploading ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Processing OCR & Intelligence...</span>
+                  <span>Processing OCR & Groq Diagnostics...</span>
                 </>
               ) : (
                 <>
                   <Upload className="w-3.5 h-3.5" />
-                  <span>Select File to Upload</span>
+                  <span>Select File to Ingest</span>
                 </>
               )}
               <input
@@ -486,81 +591,175 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
             </label>
           </div>
 
-          {/* Submitted Documents List */}
-          <div className="bg-[#111827] rounded-lg border border-[#1e293b] p-4 shadow-lg space-y-3">
+          {/* 🚦 INLINE GROQ AI SUMMARY & TRAFFIC LIGHT SECTION */}
+          <div className="bg-[#111827] rounded-lg border border-indigo-500/30 p-4 shadow-xl space-y-3.5 relative overflow-hidden">
+            {/* Header with Groq AI Summary badge */}
             <div className="flex items-center justify-between pb-2 border-b border-[#1e293b]">
-              <div>
-                <h3 className="font-bold text-slate-200 text-xs font-display">Submitted Documents</h3>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {selectedBidder?.company_name || 'Selected Bidder'}
-                </span>
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
+                <h3 className="font-bold text-slate-100 text-xs font-display">
+                  Groq AI Summary
+                </h3>
               </div>
-              <span className="text-[11px] text-[#6366f1] font-mono font-bold">{documents.length} FILES</span>
+              <span className="px-2 py-0.5 bg-amber-400/10 text-amber-300 border border-amber-400/30 rounded font-mono text-[9px] font-bold flex items-center gap-1">
+                <Activity className="w-3 h-3 text-amber-400" />
+                {loadingGroq ? 'Analyzing...' : 'Llama-3.3 Ultra-Fast'}
+              </span>
             </div>
 
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-              {documents.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-500 font-mono">
-                  No documents found for this company. Upload a document above to evaluate!
+            {/* Visual Traffic Light Status Triplet (Green / Yellow / Red) */}
+            <div className="grid grid-cols-3 gap-2">
+              {/* Green Light Box */}
+              <div className="bg-[#0b0f19] p-2.5 rounded-lg border border-emerald-500/30 flex flex-col items-center text-center">
+                <div className="w-4 h-4 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] mb-1 flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5 text-black stroke-[3]" />
                 </div>
-              ) : (
-                documents.map((doc) => {
-                  const isSelected = selectedDoc?.id === doc.id;
-                  const isPending = doc.status === 'UPLOADED' || doc.status === 'PROCESSING';
-                  const isNew = newlyUploadedDocIds.has(doc.id);
+                <span className="text-[10px] font-bold text-emerald-400 font-mono">GREEN LIGHT</span>
+                <span className="text-[9px] text-slate-400 font-mono mt-0.5">
+                  {fields.filter((f) => f.validation_status === 'VALID').length} Passed Checks
+                </span>
+              </div>
 
+              {/* Amber / Yellow Light Box */}
+              <div className="bg-[#0b0f19] p-2.5 rounded-lg border border-amber-500/30 flex flex-col items-center text-center">
+                <div className="w-4 h-4 rounded-full bg-amber-400 shadow-[0_0_10px_#f59e0b] mb-1 flex items-center justify-center">
+                  <AlertCircle className="w-2.5 h-2.5 text-black stroke-[3]" />
+                </div>
+                <span className="text-[10px] font-bold text-amber-400 font-mono">AMBER LIGHT</span>
+                <span className="text-[9px] text-slate-400 font-mono mt-0.5">
+                  {missingMandatoryDocs.length} Missing Docs
+                </span>
+              </div>
+
+              {/* Red Light Box */}
+              <div className="bg-[#0b0f19] p-2.5 rounded-lg border border-rose-500/30 flex flex-col items-center text-center">
+                <div className="w-4 h-4 rounded-full bg-rose-500 shadow-[0_0_10px_#ef4444] mb-1 flex items-center justify-center">
+                  <X className="w-2.5 h-2.5 text-white stroke-[3]" />
+                </div>
+                <span className="text-[10px] font-bold text-rose-400 font-mono">RED LIGHT</span>
+                <span className="text-[9px] text-slate-400 font-mono mt-0.5">
+                  {invalidFields.length} Format Defects
+                </span>
+              </div>
+            </div>
+
+            {/* Diagrammatic Verification Flow */}
+            <div className="p-2.5 bg-[#0b0f19] rounded-lg border border-[#1e293b] space-y-1.5">
+              <div className="text-[10px] font-bold text-slate-300 font-mono uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#6366f1]" />
+                <span>Verification Pipeline Diagram</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1 text-center font-mono">
+                <div className="p-1 rounded bg-[#1e293b]/70 border border-[#334155] text-[9px] text-slate-300">
+                  <div className="text-[8px] text-slate-400">STEP 1</div>
+                  <div className="font-bold text-emerald-400">PyMuPDF OCR</div>
+                </div>
+                <div className="p-1 rounded bg-[#1e293b]/70 border border-[#334155] text-[9px] text-slate-300">
+                  <div className="text-[8px] text-slate-400">STEP 2</div>
+                  <div className="font-bold text-indigo-300">Entity Regex</div>
+                </div>
+                <div className="p-1 rounded bg-[#1e293b]/70 border border-[#334155] text-[9px] text-slate-300">
+                  <div className="text-[8px] text-slate-400">STEP 3</div>
+                  <div className={`font-bold ${invalidFields.length > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    Syntax Check
+                  </div>
+                </div>
+                <div className="p-1 rounded bg-amber-500/10 border border-amber-500/30 text-[9px] text-amber-300">
+                  <div className="text-[8px] text-amber-400">STEP 4</div>
+                  <div className="font-bold">Groq Audit</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mandatory Statutory Checklist (Traffic Light Checklist) */}
+            <div className="p-2.5 bg-[#0b0f19] rounded-lg border border-[#1e293b] space-y-1.5">
+              <div className="text-[10px] font-bold text-slate-300 font-mono uppercase tracking-wider flex items-center justify-between">
+                <span>Statutory Procurement Checklist</span>
+                <span className="text-[9px] text-[#c0c1ff]">
+                  {5 - missingMandatoryDocs.length} / 5 Present
+                </span>
+              </div>
+              <div className="space-y-1 font-mono text-[10px]">
+                {MANDATORY_BIDDER_DOCS.map((docReq, idx) => {
+                  const isPresent = !missingMandatoryDocs.some((m) => m.type === docReq.type);
                   return (
                     <div
-                      key={doc.id}
-                      onClick={() => handleSelectDoc(doc)}
-                      className={`p-2.5 rounded-md border text-xs cursor-pointer transition flex flex-col gap-1.5 ${
-                        isSelected
-                          ? 'bg-[#6366f1]/15 border-[#6366f1] text-slate-100 shadow-md ring-1 ring-[#6366f1]/50'
-                          : 'bg-[#1e293b]/50 border-[#1e293b] text-slate-300 hover:bg-[#1f2937] hover:border-[#334155]'
+                      key={idx}
+                      className={`p-1.5 rounded flex items-center justify-between border ${
+                        isPresent
+                          ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
+                          : 'bg-rose-950/20 border-rose-500/30 text-rose-300'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <FileText className={`w-4 h-4 flex-shrink-0 ${isNew ? 'text-[#6366f1]' : 'text-slate-400'}`} />
-                          <div className="truncate font-semibold text-slate-200 text-[11px] font-mono">
-                            {doc.file_name}
-                          </div>
-                        </div>
-
+                      <div className="flex items-center gap-1.5">
                         <span
-                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono flex-shrink-0 flex items-center gap-1 ${
-                            doc.status === 'PROCESSED' || doc.status === 'COMPLETED'
-                              ? 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40'
-                              : doc.status === 'NEEDS_REVIEW'
-                              ? 'bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40'
-                              : doc.status === 'FAILED' || doc.status === 'UNSUPPORTED'
-                              ? 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/40'
-                              : 'bg-indigo-900/40 text-indigo-300 border border-indigo-500/30'
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            isPresent ? 'bg-emerald-400 shadow-[0_0_6px_#10b981]' : 'bg-rose-500 shadow-[0_0_6px_#ef4444]'
                           }`}
-                        >
-                          {isPending && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />}
-                          {doc.status}
-                        </span>
+                        />
+                        <span className="font-semibold">{docReq.label}</span>
                       </div>
-
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                        <span className="uppercase text-[#c0c1ff]">{doc.document_type || 'Unclassified'}</span>
-                        {isNew && (
-                          <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-[#c0c1ff] border border-indigo-500/40 font-bold text-[9px] animate-pulse">
-                            ✨ NEWLY UPLOADED
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-[9px] font-extrabold uppercase px-1 rounded bg-black/40">
+                        {isPresent ? '🟢 PRESENT' : '🔴 MISSING'}
+                      </span>
                     </div>
                   );
-                })
+                })}
+              </div>
+            </div>
+
+            {/* Executive Groq AI Summary Box */}
+            <div className="p-3 bg-[#0b0f19] rounded-lg border border-amber-500/30 text-xs font-mono space-y-1.5">
+              <div className="flex items-center justify-between text-amber-300 font-bold text-[11px]">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Groq AI Executive Audit Summary
+                </span>
+                <span className="text-[9px] text-slate-400">
+                  {groqDiagnostic?.model_used || 'Groq LPU Engine'}
+                </span>
+              </div>
+
+              {loadingGroq ? (
+                <div className="py-4 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span>Synthesizing Groq AI audit summary...</span>
+                </div>
+              ) : groqDiagnostic?.ai_summary ? (
+                <div className="text-[10px] text-slate-200 leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap pr-1">
+                  {groqDiagnostic.ai_summary}
+                </div>
+              ) : (
+                <div className="text-[10px] text-slate-300 leading-relaxed space-y-1">
+                  <div>• <strong>Entity Ingested:</strong> {displayCompanyName}</div>
+                  <div>
+                    • <strong>Status:</strong>{' '}
+                    {invalidFields.length > 0 ? (
+                      <span className="text-rose-400">
+                        Defects detected in {invalidFields.map((f) => f.field_name.toUpperCase()).join(', ')}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-400">Extracted identifiers match statutory format</span>
+                    )}
+                  </div>
+                  <div>
+                    • <strong>Missing Documents:</strong>{' '}
+                    {missingMandatoryDocs.length > 0 ? (
+                      <span className="text-amber-400">
+                        {missingMandatoryDocs.map((m) => m.label).join(', ')}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-400">All mandatory documents uploaded</span>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Right Column: Selected Document Details, Risk Gauge & Extracted Fields Table */}
-        <div className="lg:col-span-2 bg-[#111827] rounded-lg border border-[#1e293b] p-5 shadow-lg space-y-5">
+        {/* Right Column (7 Cols): Selected Document Details, Risk Speedometer & Extracted Fields Panel */}
+        <div className="lg:col-span-7 bg-[#111827] rounded-lg border border-[#1e293b] p-5 shadow-lg space-y-5">
           {selectedDoc ? (
             <>
               {/* Document Header Bar */}
@@ -568,7 +767,13 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                 <div>
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="px-2 py-0.5 bg-[#6366f1]/20 text-[#c0c1ff] border border-[#6366f1]/30 rounded font-mono text-[10px] font-bold">
-                      {docEvidence?.document_type || selectedDoc.document_type || 'DOCUMENT'}
+                      {selectedDoc.file_name.toLowerCase().endsWith('.png')
+                        ? 'PNG IMAGE'
+                        : selectedDoc.file_name.toLowerCase().endsWith('.jpg') || selectedDoc.file_name.toLowerCase().endsWith('.jpeg')
+                        ? 'JPEG IMAGE'
+                        : selectedDoc.file_name.toLowerCase().endsWith('.pdf')
+                        ? 'PDF DOCUMENT'
+                        : 'DIGITAL DOCUMENT'}
                     </span>
                     <h2 className="text-sm font-bold text-slate-100 font-display">{selectedDoc.file_name}</h2>
                     {isNewlyUploaded && (
@@ -634,9 +839,9 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                 </div>
               </div>
 
-              {/* Document Overview & Dynamic Risk Speedometer Banner */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#0b0f19] p-4 rounded-lg border border-[#1e293b]">
-                <div className="md:col-span-2 space-y-2.5">
+              {/* Document Overview & Dynamic Proportional Risk Speedometer Banner */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-[#0b0f19] p-4 rounded-lg border border-[#1e293b]">
+                <div className="md:col-span-7 space-y-2.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-100 font-mono">
                     <Building className="w-4 h-4 text-[#6366f1] flex-shrink-0" />
                     <span className="text-slate-300">DOCUMENT ENTITY:</span>
@@ -647,15 +852,21 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
 
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div>
-                      <span className="text-slate-400 block text-[10px]">DOCUMENT TYPE:</span>
-                      <span className="text-slate-200 font-semibold">{selectedDoc.document_type || 'Unclassified'}</span>
+                      <span className="text-slate-400 block text-[10px]">FILE FORMAT / EXTENSION:</span>
+                      <span className="text-[#c0c1ff] font-semibold">
+                        {selectedDoc.file_name.toLowerCase().endsWith('.pdf')
+                          ? 'PDF Document (.pdf)'
+                          : selectedDoc.file_name.toLowerCase().endsWith('.png')
+                          ? 'PNG Image (.png)'
+                          : selectedDoc.file_name.toLowerCase().endsWith('.jpg') || selectedDoc.file_name.toLowerCase().endsWith('.jpeg')
+                          ? 'JPEG Image (.jpg)'
+                          : 'Digital File'}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[10px]">CONFIDENCE SCORE:</span>
-                      <span className="text-[#c0c1ff] font-semibold">
-                        {selectedDoc.classification_confidence
-                          ? `${Math.round(selectedDoc.classification_confidence * 100)}%`
-                          : '85%'}
+                      <span className="text-slate-400 block text-[10px]">DOCUMENT CLASSIFICATION:</span>
+                      <span className="text-slate-200 font-semibold">
+                        {selectedDoc.document_type ? selectedDoc.document_type.replace(/_/g, ' ') : 'Statutory Verification'}
                       </span>
                     </div>
                     <div className="col-span-2">
@@ -672,7 +883,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                   {riskInfo.reasons.length > 0 && (
                     <div className="pt-2 border-t border-[#1e293b]">
                       <span className="text-[10px] text-slate-400 font-mono block mb-1">
-                        CURRENT DOCUMENT RISK FACTORS:
+                        DETECTED RISK & COMPLIANCE SIGNALS:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
                         {riskInfo.reasons.map((r, i) => (
@@ -689,10 +900,42 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                   )}
                 </div>
 
-                {/* Risk Speedometer Gauge */}
-                <div className="flex flex-col items-center justify-center border-l border-[#1e293b] pl-3">
-                  <RiskGauge score={riskInfo.score} level={riskInfo.level} label="Document Risk Speedometer" />
+                {/* Proportional Risk Speedometer Gauge */}
+                <div className="md:col-span-5 flex flex-col items-center justify-center border-l border-[#1e293b] pl-3">
+                  <RiskGauge
+                    score={riskInfo.score}
+                    level={riskInfo.level}
+                    label="Proportional Risk Speedometer"
+                    formula={riskInfo.formula}
+                  />
                 </div>
+              </div>
+
+              {/* ACTION CALLOUT: Add/Sync Bidder to Dossier, Risk Graph & Dashboards */}
+              <div className="p-4 bg-gradient-to-r from-indigo-950/60 via-slate-900 to-indigo-950/40 rounded-lg border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
+                    <h4 className="text-xs font-bold text-slate-100 font-display">
+                      Publish & Synchronize Bidder to System
+                    </h4>
+                    <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-[#c0c1ff] border border-indigo-500/40 font-mono text-[9px] font-bold">
+                      LIVE SYNC
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 font-mono">
+                    Add <strong className="text-[#c0c1ff]">{displayCompanyName}</strong> to the Bidder Dossier,
+                    Procurement Risk Graph, Overview Dashboard & Audit Export Sheets.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleSyncBidderAcrossSystem}
+                  className="px-4 py-2 bg-gradient-to-r from-[#6366f1] to-[#4f46e5] hover:from-[#4f46e5] hover:to-[#4338ca] text-white text-xs font-bold rounded shadow-lg transition flex items-center gap-2 font-mono flex-shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Sync to All Dashboards</span>
+                </button>
               </div>
 
               {/* CRITICAL DIAGNOSTICS: What's Wrong vs What's Missing */}
@@ -723,7 +966,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                             Value: <code className="text-white bg-black/40 px-1 rounded">{f.field_value}</code>
                           </div>
                           <div className="text-[10px] text-rose-300 mt-1">
-                            ⚠️ {f.validation_message || 'Format regex check failed.'}
+                            ⚠️ {f.validation_message || 'Format check failed against regulatory pattern.'}
                           </div>
                         </div>
                       ))}
@@ -735,23 +978,45 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                   ) : (
                     <div className="p-2.5 rounded bg-[#10b981]/10 border border-[#10b981]/30 text-xs font-mono text-emerald-300 flex items-center gap-2">
                       <Check className="w-4 h-4 text-[#10b981]" />
-                      <span>All extracted fields passed standard regulatory validation rules.</span>
+                      <span>All extracted fields in this document passed regulatory validation rules.</span>
                     </div>
                   )}
                 </div>
 
-                {/* 🟡 What's Missing */}
+                {/* 🟡 What's Missing: Document Fields + Mandatory Checklist */}
                 <div className="p-3.5 bg-[#0b0f19] rounded-lg border border-[#1e293b] space-y-2">
                   <div className="flex items-center gap-2 text-xs font-bold font-mono">
                     <HelpCircle
-                      className={`w-4 h-4 ${missingFields.length > 0 ? 'text-[#f59e0b]' : 'text-[#10b981]'}`}
+                      className={`w-4 h-4 ${
+                        missingMandatoryDocs.length > 0 || missingFields.length > 0
+                          ? 'text-[#f59e0b]'
+                          : 'text-[#10b981]'
+                      }`}
                     />
-                    <span className="text-slate-200 uppercase tracking-wide">What's Missing in Document</span>
+                    <span className="text-slate-200 uppercase tracking-wide">
+                      What's Missing (Docs & Parameters)
+                    </span>
                   </div>
 
-                  {missingFields.length > 0 ? (
-                    <div className="space-y-1.5">
-                      {missingFields.map((f, i) => (
+                  <div className="space-y-1.5">
+                    {/* Missing Mandatory Documents for the company */}
+                    {missingMandatoryDocs.length > 0 && (
+                      <div className="p-2 rounded bg-amber-950/30 border border-amber-500/30 space-y-1">
+                        <span className="text-[10px] font-bold text-amber-300 uppercase font-mono block">
+                          Missing Statutory Documents ({missingMandatoryDocs.length}):
+                        </span>
+                        {missingMandatoryDocs.map((md, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5 text-[10px] text-amber-200/90 font-mono">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                            <span>{md.label} — <em className="text-amber-400/80">{md.reason}</em></span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Missing Fields inside this document */}
+                    {missingFields.length > 0 ? (
+                      missingFields.map((f, i) => (
                         <div
                           key={i}
                           className="p-2 rounded bg-[#f59e0b]/10 border border-[#f59e0b]/30 text-xs font-mono text-amber-200 flex items-start gap-2"
@@ -760,18 +1025,18 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                           <div>
                             <div className="font-bold text-[11px] text-amber-200">{f.label}</div>
                             <div className="text-[10px] text-amber-300/80">
-                              Mandatory parameter not detected in the extracted OCR text stream.
+                              Parameter not detected in current document OCR stream.
                             </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-2.5 rounded bg-[#10b981]/10 border border-[#10b981]/30 text-xs font-mono text-emerald-300 flex items-center gap-2">
-                      <Check className="w-4 h-4 text-[#10b981]" />
-                      <span>All expected mandatory parameters for this document category are present.</span>
-                    </div>
-                  )}
+                      ))
+                    ) : missingMandatoryDocs.length === 0 ? (
+                      <div className="p-2.5 rounded bg-[#10b981]/10 border border-[#10b981]/30 text-xs font-mono text-emerald-300 flex items-center gap-2">
+                        <Check className="w-4 h-4 text-[#10b981]" />
+                        <span>All mandatory documents and category parameters are fully satisfied.</span>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -858,7 +1123,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
           ) : (
             <div className="text-center py-20 text-slate-400 text-xs font-mono">
               <FileSearch className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              Select a submitted document from the left list or upload a document to inspect live OCR extracted fields and evidence.
+              Upload a document or select an active file above to view live Groq AI traffic-light diagnostics and extracted parameters.
             </div>
           )}
         </div>
@@ -1010,6 +1275,102 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                   className="max-w-full max-h-full object-contain rounded shadow-lg border border-[#1e293b]"
                 />
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Success Modal */}
+      {syncSuccessModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111827] border border-indigo-500/40 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1e293b]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                  <Check className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 font-display">
+                    Bidder Synchronized Across Entire System
+                  </h3>
+                  <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                    ACTIVE IN ALL DASHBOARDS
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSyncSuccessModalOpen(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-[#0b0f19] rounded-lg border border-[#1e293b] text-xs font-mono space-y-2">
+              <div className="text-slate-300">
+                Company <strong className="text-[#c0c1ff]">{syncedBidderName}</strong> has been enrolled and updated across all procurement analytics modules.
+              </div>
+              <div className="text-[11px] text-slate-400">
+                You can now evaluate its compliance score, cross-bidder risk collusion graph, and download the compiled evaluation report.
+              </div>
+            </div>
+
+            {/* Quick Navigation Action Grid */}
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <a
+                href={`/bidders?tenderId=${tenderId}`}
+                className="p-3 bg-[#1e293b] hover:bg-[#334155] border border-[#334155] rounded-lg text-xs font-mono text-slate-200 flex flex-col gap-1 transition group"
+              >
+                <div className="flex items-center justify-between text-indigo-400 group-hover:text-white">
+                  <span className="font-bold flex items-center gap-1.5"><Building className="w-3.5 h-3.5" /> Bidder Dossier</span>
+                  <span>→</span>
+                </div>
+                <span className="text-[10px] text-slate-400">View company dossier & credentials</span>
+              </a>
+
+              <a
+                href={`/risk-graph?tenderId=${tenderId}`}
+                className="p-3 bg-[#1e293b] hover:bg-[#334155] border border-[#334155] rounded-lg text-xs font-mono text-slate-200 flex flex-col gap-1 transition group"
+              >
+                <div className="flex items-center justify-between text-indigo-400 group-hover:text-white">
+                  <span className="font-bold flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" /> Risk Graph</span>
+                  <span>→</span>
+                </div>
+                <span className="text-[10px] text-slate-400">Inspect collusion & address networks</span>
+              </a>
+
+              <a
+                href={`/?tenderId=${tenderId}`}
+                className="p-3 bg-[#1e293b] hover:bg-[#334155] border border-[#334155] rounded-lg text-xs font-mono text-slate-200 flex flex-col gap-1 transition group"
+              >
+                <div className="flex items-center justify-between text-emerald-400 group-hover:text-white">
+                  <span className="font-bold flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Overview Dashboard</span>
+                  <span>→</span>
+                </div>
+                <span className="text-[10px] text-slate-400">Track ranking & compliance cards</span>
+              </a>
+
+              <a
+                href={`/export?tenderId=${tenderId}`}
+                className="p-3 bg-[#1e293b] hover:bg-[#334155] border border-[#334155] rounded-lg text-xs font-mono text-slate-200 flex flex-col gap-1 transition group"
+              >
+                <div className="flex items-center justify-between text-emerald-400 group-hover:text-white">
+                  <span className="font-bold flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Export Excel / CSV</span>
+                  <span>→</span>
+                </div>
+                <span className="text-[10px] text-slate-400">Download updated evaluation sheets</span>
+              </a>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSyncSuccessModalOpen(false)}
+                className="px-4 py-2 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-bold rounded font-mono transition cursor-pointer"
+              >
+                Continue In Document Studio
+              </button>
             </div>
           </div>
         </div>

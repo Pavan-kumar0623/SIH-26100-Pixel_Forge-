@@ -277,6 +277,49 @@ VALIDATORS = {
 def validate_extracted_data(document_type: str, data: dict) -> list:
     """Main entry: validate extracted data and return field-level validation results."""
     validator = VALIDATORS.get(document_type)
-    if not validator:
-        return []
-    return validator(data)
+    results = validator(data) if validator else []
+    
+    # Also check any extra identifiers extracted in the payload that were not part of the base schema
+    existing_field_names = {r.get("field_name") for r in results}
+
+    if data.get("pan") and "pan" not in existing_field_names:
+        p_status, p_msg = validate_pan(data.get("pan"))
+        results.append({
+            "field_name": "pan",
+            "field_value": data.get("pan"),
+            "validation_status": p_status,
+            "validation_message": p_msg,
+            "confidence": data.get("_confidence", 0.85)
+        })
+
+    if data.get("udyam_number") and "udyam_number" not in existing_field_names:
+        u_status, u_msg = validate_udyam(data.get("udyam_number"))
+        results.append({
+            "field_name": "udyam_number",
+            "field_value": data.get("udyam_number"),
+            "validation_status": u_status,
+            "validation_message": u_msg,
+            "confidence": data.get("_confidence", 0.85)
+        })
+
+    if data.get("gstin") and "gstin" not in existing_field_names:
+        g_status, g_msg = validate_gstin(data.get("gstin"))
+        results.append({
+            "field_name": "gstin",
+            "field_value": data.get("gstin"),
+            "validation_status": g_status,
+            "validation_message": g_msg,
+            "confidence": data.get("_confidence", 0.85)
+        })
+
+    if data.get("cin") and "cin" not in existing_field_names:
+        c_status, c_msg = validate_cin(data.get("cin"))
+        results.append({
+            "field_name": "cin",
+            "field_value": data.get("cin"),
+            "validation_status": c_status,
+            "validation_message": c_msg,
+            "confidence": data.get("_confidence", 0.85)
+        })
+
+    return results

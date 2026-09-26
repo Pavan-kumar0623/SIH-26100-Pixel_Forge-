@@ -99,7 +99,7 @@ def process_document(document_id: int, db: Session) -> dict:
             raw_text = f"[MINIMAL TEXT] {extraction_result.get('note', '')} filename:{doc.file_name}"
 
         # ── Step 3: Gemini Classification ───────────────────────────────────
-        classification = classify_document(raw_text)
+        classification = classify_document(raw_text, doc.file_name)
         doc.document_type = classification.get("document_type", "UNKNOWN")
         doc.classification_confidence = classification.get("confidence", 0.0)
         doc.is_supported = str(classification.get("is_supported", False)).lower()
@@ -138,12 +138,16 @@ def process_document(document_id: int, db: Session) -> dict:
 
         has_low_confidence = False
         for field in validated_fields:
-            if field.get("field_value") is None:
-                continue
+            val = field.get("field_value")
+            if val is None or str(val).strip() == "":
+                if field.get("validation_status") in ["MISSING", "INVALID"]:
+                    val = "<Not Found / Missing>"
+                else:
+                    continue
             ef = ExtractedField(
                 document_id=doc.id,
                 field_name=field["field_name"],
-                field_value=str(field.get("field_value", "")),
+                field_value=str(val),
                 confidence=field.get("confidence", 0.0),
                 page_number=1,
                 evidence=_build_evidence(field, doc.file_name),

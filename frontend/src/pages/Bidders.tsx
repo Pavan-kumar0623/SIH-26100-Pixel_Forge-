@@ -120,10 +120,17 @@ export const Bidders: React.FC<BiddersProps> = ({ tenderId }) => {
 
       {/* Grid of Bidders */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredBidders.map((bidder) => (
+        {filteredBidders.map((bidder) => {
+          let isNewlyAdded = false;
+          try {
+            const stored = JSON.parse(localStorage.getItem('newly_added_bidders') || '[]');
+            isNewlyAdded = stored.includes(bidder.id);
+          } catch (e) {}
+
+          return (
           <div
             key={bidder.id}
-            className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 shadow-xl hover:border-slate-700 transition flex flex-col justify-between space-y-4"
+            className={`bg-slate-900/90 rounded-2xl border ${isNewlyAdded ? 'border-indigo-500/60 shadow-indigo-500/10' : 'border-slate-800'} p-6 shadow-xl hover:border-slate-700 transition flex flex-col justify-between space-y-4`}
           >
             <div>
               <div className="flex items-center gap-3.5 mb-4">
@@ -131,7 +138,14 @@ export const Bidders: React.FC<BiddersProps> = ({ tenderId }) => {
                   {bidder.company_name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-100 text-base">{bidder.company_name}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-slate-100 text-base">{bidder.company_name}</h3>
+                    {isNewlyAdded && (
+                      <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded-full text-[10px] font-bold font-mono animate-pulse">
+                        ✨ NEW
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-indigo-400/80 font-medium">{bidder.industry || 'Railway / General Supplier'}</span>
                 </div>
               </div>
@@ -169,7 +183,8 @@ export const Bidders: React.FC<BiddersProps> = ({ tenderId }) => {
               </Link>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Add Bidder Modal */}
