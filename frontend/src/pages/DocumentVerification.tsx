@@ -15,7 +15,8 @@ import {
   Info,
   HelpCircle,
   MessageSquare,
-  Building
+  Building,
+  X
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { getBidders, getDocuments, uploadDocument, getEvidence, reprocessDocument } from '../api/client';
@@ -31,8 +32,6 @@ const RiskGauge: React.FC<{ score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; lab
   level,
   label = 'Risk Level',
 }) => {
-  // Angle: -90deg (0%) to 90deg (100%)
-  const angle = Math.min(Math.max((score / 100) * 180 - 90, -90), 90);
   const colorClass =
     level === 'HIGH'
       ? '#ef4444'
@@ -40,42 +39,79 @@ const RiskGauge: React.FC<{ score: number; level: 'LOW' | 'MEDIUM' | 'HIGH'; lab
       ? '#f59e0b'
       : '#10b981';
 
+  // Arc: from -180deg (left) to 0deg (right) — needle angle maps 0%→-180, 100%→0
+  // SVG center is (60, 60), radius 40. Arc from 180° to 0° (top half).
+  const clampedScore = Math.min(Math.max(score, 0), 100);
+  // Needle angle in degrees: -180 (left, 0%) to 0 (right, 100%)
+  const needleDeg = -180 + (clampedScore / 100) * 180;
+  // Convert to radians for needle tip calculation
+  const needleRad = ((needleDeg) * Math.PI) / 180;
+  const R = 38; // needle length
+  const cx = 60; const cy = 60;
+  const nx = cx + R * Math.cos(needleRad);
+  const ny = cy + R * Math.sin(needleRad);
+
+  // Arc circumference for half-circle radius 40 = π*40 ≈ 125.7
+  const arcLen = Math.PI * 40;
+  const arcFill = (clampedScore / 100) * arcLen;
+
   return (
     <div className="flex flex-col items-center justify-center p-3 bg-[#0b0f19] rounded border border-[#1e293b]">
-      <div className="relative w-28 h-14 flex items-end justify-center overflow-hidden">
-        <svg className="w-28 h-28" viewBox="0 0 100 50">
+      <div className="relative w-32 h-20 flex items-end justify-center overflow-hidden">
+        <svg width="120" height="72" viewBox="0 0 120 72">
+          {/* Background arc track */}
           <path
-            d="M 10 50 A 40 40 0 0 1 90 50"
+            d="M 20 60 A 40 40 0 0 1 100 60"
             fill="none"
             stroke="#1e293b"
             strokeWidth="10"
             strokeLinecap="round"
           />
+          {/* Filled arc — score fill */}
           <path
-            d="M 10 50 A 40 40 0 0 1 90 50"
+            d="M 20 60 A 40 40 0 0 1 100 60"
             fill="none"
             stroke={colorClass}
             strokeWidth="10"
             strokeLinecap="round"
-            strokeDasharray="126"
-            strokeDashoffset={126 - (score / 100) * 126}
-            className="transition-all duration-700 ease-out"
+            strokeDasharray={`${arcLen}`}
+            strokeDashoffset={arcLen - arcFill}
+            style={{ transition: 'stroke-dashoffset 0.7s ease-out' }}
           />
+          {/* Needle */}
+          <line
+            x1={cx}
+            y1={cy}
+            x2={nx}
+            y2={ny}
+            stroke="#f1f5f9"
+            strokeWidth="2"
+            strokeLinecap="round"
+            style={{ transition: 'x2 0.7s ease-out, y2 0.7s ease-out' }}
+          />
+          {/* Center pivot */}
+          <circle cx={cx} cy={cy} r="4" fill="#6366f1" />
+          {/* Score text inside gauge */}
+          <text
+            x={cx}
+            y={cy - 10}
+            textAnchor="middle"
+            fontSize="11"
+            fontWeight="bold"
+            fill={colorClass}
+            fontFamily="monospace"
+          >
+            {clampedScore}%
+          </text>
         </svg>
-        <div
-          className="absolute bottom-0 w-1 h-10 bg-slate-100 origin-bottom transition-transform duration-700 ease-out rounded-full shadow"
-          style={{ transform: `rotate(${angle}deg)` }}
-        />
-        <div className="absolute bottom-0 w-3 h-3 bg-[#6366f1] rounded-full border-2 border-white shadow" />
       </div>
 
-      <div className="mt-2 text-center">
+      <div className="mt-1 text-center">
         <div className="text-[10px] uppercase font-mono font-bold text-slate-400">{label}</div>
         <div className="flex items-center gap-1.5 justify-center mt-0.5">
           <span className="text-xs font-extrabold font-mono" style={{ color: colorClass }}>
             {level}
           </span>
-          <span className="text-[11px] font-mono text-slate-400">({score}%)</span>
         </div>
       </div>
     </div>
@@ -92,6 +128,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [docEvidence, setDocEvidence] = useState<any>(null);
   const [evidenceModal, setEvidenceModal] = useState<{ open: boolean; field?: ExtractedField }>({ open: false });
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   const [uploading, setUploading] = useState(false);
   const [loadingEvidence, setLoadingEvidence] = useState(false);
@@ -116,13 +153,18 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
       setDocuments(docs || []);
 
       if (docs && docs.length > 0) {
-        if (autoSelect || !selectedDoc) {
-          handleSelectDoc(docs[0]);
+        if (!selectedDoc || autoSelect) {
+          handleSelectDoc(docs[docs.length - 1] || docs[0]);
         } else {
           // Refresh selected doc reference
           const updated = docs.find((d) => d.id === selectedDoc.id);
           if (updated) {
+            const statusChanged = updated.status !== selectedDoc.status;
             setSelectedDoc(updated);
+            if (statusChanged) {
+              const evidence = await getEvidence(updated.id);
+              setDocEvidence(evidence);
+            }
           }
         }
       } else {
@@ -147,7 +189,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
     if (hasPendingDocs || uploading) {
       pollTimerRef.current = setInterval(() => {
         loadDocuments(false);
-      }, 2000);
+      }, 1500);
     } else if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
@@ -158,7 +200,7 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
         clearInterval(pollTimerRef.current);
       }
     };
-  }, [documents, uploading, selectedBidderId]);
+  }, [documents, uploading, selectedBidderId, selectedDoc?.id, selectedDoc?.status]);
 
   const handleSelectDoc = async (doc: DocumentItem) => {
     setSelectedDoc(doc);
@@ -180,12 +222,18 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
 
     setUploading(true);
     try {
-      await uploadDocument(selectedBidderId, file);
-      await loadDocuments(true);
+      const uploaded = await uploadDocument(selectedBidderId, file);
+      const docs = await getDocuments(selectedBidderId);
+      setDocuments(docs || []);
+      const matched = (docs || []).find((d) => d.id === uploaded?.id) || (docs && docs[docs.length - 1]);
+      if (matched) {
+        handleSelectDoc(matched);
+      }
     } catch (err) {
       console.error('Upload failed:', err);
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -352,6 +400,14 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPreviewModalOpen(true)}
+                    className="px-2.5 py-1.5 bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#c0c1ff] border border-[#6366f1]/40 text-xs font-medium rounded transition flex items-center gap-1.5 font-mono shadow-sm"
+                    title="Preview Document File"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-[#6366f1]" />
+                    <span>Preview File</span>
+                  </button>
                   <button
                     onClick={handleReprocess}
                     className="px-2.5 py-1.5 bg-[#1f2937] hover:bg-[#334155] text-slate-200 border border-[#334155] text-xs font-medium rounded transition flex items-center gap-1.5 font-mono"
@@ -541,6 +597,56 @@ export const DocumentVerification: React.FC<DocumentVerificationProps> = ({ tend
               >
                 Close Audit Trace
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Preview Modal Overlay */}
+      {previewModalOpen && selectedDoc && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-lg max-w-5xl w-full h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[#1e293b] bg-[#0b0f19]">
+              <div className="flex items-center gap-2.5">
+                <FileText className="w-4 h-4 text-[#6366f1]" />
+                <h3 className="text-sm font-bold text-slate-100 font-display">{selectedDoc.file_name}</h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#6366f1]/20 text-[#c0c1ff] border border-[#6366f1]/30 uppercase font-bold">
+                  {selectedDoc.document_type || 'Document Viewer'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/documents/${selectedDoc.id}/download`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1 bg-[#1f2937] hover:bg-[#334155] text-slate-200 border border-[#334155] rounded text-xs font-mono flex items-center gap-1.5 transition"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#6366f1]" /> Download Original
+                </a>
+                <button
+                  onClick={() => setPreviewModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-[#1f2937] transition"
+                  title="Close Preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-[#090d16] p-3 flex items-center justify-center overflow-auto relative">
+              {selectedDoc.file_name.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={`/api/documents/${selectedDoc.id}/download`}
+                  title={selectedDoc.file_name}
+                  className="w-full h-full rounded border border-[#1e293b] bg-white"
+                />
+              ) : (
+                <img
+                  src={`/api/documents/${selectedDoc.id}/download`}
+                  alt={selectedDoc.file_name}
+                  className="max-w-full max-h-full object-contain rounded shadow-lg border border-[#1e293b]"
+                />
+              )}
             </div>
           </div>
         </div>

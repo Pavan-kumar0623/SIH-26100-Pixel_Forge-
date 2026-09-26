@@ -142,14 +142,60 @@ def get_document_evidence(document_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/documents/{document_id}/download")
-def download_document(document_id: int, db: Session = Depends(get_db)):
-    """Download/view the raw document file."""
-    from fastapi.responses import FileResponse
+def download_document(document_id: int, inline: bool = True, db: Session = Depends(get_db)):
+    """Download/view the document file with proper MIME type and inline header."""
+    from fastapi.responses import FileResponse, Response
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc or not doc.file_path or not os.path.exists(doc.file_path):
         raise HTTPException(status_code=404, detail="Document file not found on disk")
+
+    ext = os.path.splitext(doc.file_name)[1].lower()
+    media_types = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".txt": "text/plain",
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+
+    # If it's a seeded mock file (text saved with .pdf extension), render a styled HTML preview card
+    if ext == ".pdf":
+        try:
+            with open(doc.file_path, "rb") as f:
+                header = f.read(5)
+            if header != b"%PDF-":
+                with open(doc.file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    txt = f.read()
+                html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>{doc.file_name}</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #0b0f19; color: #f1f5f9; padding: 2rem; margin: 0; }}
+.card {{ background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 2rem; max-width: 600px; margin: 2rem auto; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); }}
+h2 {{ color: #e2e8f0; margin-top: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }}
+.badge {{ background: rgba(99, 102, 241, 0.2); color: #c0c1ff; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }}
+.content {{ margin-top: 1.5rem; padding: 1.25rem; background: #0b0f19; border: 1px solid #1e293b; border-radius: 6px; color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; font-family: monospace; }}
+.info {{ margin-top: 1.5rem; font-size: 0.75rem; color: #64748b; border-top: 1px solid #1e293b; padding-top: 1rem; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>📄 {doc.file_name}</h2>
+  <span class="badge">{doc.document_type or 'MOCK DOCUMENT'}</span>
+  <div class="content">{txt}</div>
+  <div class="info">💡 This is a seeded demonstration document record. Upload a real PDF or image above to test live PyMuPDF & OCR extraction!</div>
+</div>
+</body>
+</html>"""
+                return Response(content=html, media_type="text/html")
+        except Exception:
+            pass
+
+    disposition = "inline" if inline else "attachment"
     return FileResponse(
         path=doc.file_path,
         filename=doc.file_name,
-        media_type="application/octet-stream"
+        media_type=media_type,
+        headers={"Content-Disposition": f'{disposition}; filename="{doc.file_name}"'}
     )

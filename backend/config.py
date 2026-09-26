@@ -11,8 +11,8 @@ class Settings(BaseSettings):
 
     # Grok / xAI Procurement Chatbot
     xai_api_key: str = ""
-    grok_model: str = "grok-beta"
-    grok_api_base_url: str = "https://api.x.ai/v1"
+    grok_model: str = "llama-3.3-70b-versatile"
+    grok_api_base_url: str = "https://api.groq.com/openai/v1"
 
     # Tesseract OCR
     tesseract_cmd: str = ""

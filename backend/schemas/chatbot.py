@@ -1,11 +1,12 @@
+from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 
 
 class ChatSource(BaseModel):
     type: str  # tender, bidder, document, compliance, risk, relationship
-    id: Optional[int | str] = None
+    id: Optional[Union[int, str]] = None
     label: str
     snippet: Optional[str] = None
 

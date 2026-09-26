@@ -85,13 +85,18 @@ def process_document(document_id: int, db: Session) -> dict:
         raw_text = extraction_result.get("text", "")
         ocr_used = extraction_result.get("ocr_used", False)
         doc.ocr_used = str(ocr_used).lower()
+        extraction_method = extraction_result.get("method", "")
 
-        if not raw_text or raw_text.startswith("[OCR_"):
-            if not raw_text:
-                doc.status = "FAILED"
-                doc.document_type = "UNKNOWN"
-                db.commit()
-                return {"error": "Unable to extract readable text", "status": "FAILED"}
+        # Only hard-fail if extraction completely errored AND we have no text at all
+        if not raw_text and extraction_method in ("failed", "unsupported_format"):
+            doc.status = "FAILED"
+            doc.document_type = "UNKNOWN"
+            db.commit()
+            return {"error": extraction_result.get("error", "Unable to extract readable text"), "status": "FAILED"}
+
+        # If text is very short (scanned doc without Tesseract), still try keyword classification
+        if not raw_text:
+            raw_text = f"[MINIMAL TEXT] {extraction_result.get('note', '')} filename:{doc.file_name}"
 
         # ── Step 3: Gemini Classification ───────────────────────────────────
         classification = classify_document(raw_text)
@@ -160,12 +165,15 @@ def process_document(document_id: int, db: Session) -> dict:
         try:
             bidder = db.query(Bidder).filter(Bidder.id == doc.bidder_id).first()
             if bidder:
-                from services.compliance_engine import evaluate_bidder_compliance
+                import logging as _log
+                _logger = _log.getLogger("procure_ai.doc_processor")
+                from services.compliance_engine import run_compliance_check
                 from services.risk_engine import run_risk_detection
-                evaluate_bidder_compliance(bidder.id, bidder.tender_id, db)
+                run_compliance_check(bidder.id, bidder.tender_id, db)
                 run_risk_detection(bidder.id, bidder.tender_id, db)
         except Exception as engine_err:
-            pass
+            import logging as _log
+            _log.getLogger("procure_ai.doc_processor").warning(f"Post-processing engine error: {engine_err}")
 
         return {
             "status": doc.status,

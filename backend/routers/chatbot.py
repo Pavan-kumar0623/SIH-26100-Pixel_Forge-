@@ -14,6 +14,11 @@ from services.chatbot_service import ask_procure_chatbot, clear_session, get_qui
 router = APIRouter(prefix="/api/chatbot", tags=["Chatbot"])
 
 
+import logging
+import traceback
+
+logger = logging.getLogger("procure_ai.chatbot_router")
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_assistant(
     request: ChatRequest,
@@ -39,6 +44,8 @@ async def chat_with_assistant(
         )
         return response
     except Exception as e:
+        logger.error(f"Chatbot error traceback:\n{traceback.format_exc()}")
+        print(f"[CHATBOT ERROR] {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"ProcureAI Assistant error: {str(e)}")
 
 

@@ -13,7 +13,7 @@ from config import get_settings
 from schemas.chatbot import ChatResponse, ChatSource, QuickAction
 
 logger = logging.getLogger("procure_ai.chatbot")
-settings = get_settings()
+
 
 # In-memory session store: session_id -> list of {"role": "...", "content": "..."}
 _SESSION_MEMORY: Dict[str, List[Dict[str, str]]] = {}
@@ -100,12 +100,16 @@ async def ask_procure_chatbot(
 
     history = _SESSION_MEMORY[session_id]
 
-    # Check if xAI API key is available
+    # Always read fresh settings to pick up latest .env values
+    get_settings.cache_clear()
+    settings = get_settings()
+
+    # Check if xAI/Groq API key is available
     xai_key = settings.active_xai_key
     has_valid_key = bool(xai_key and xai_key != "your_xai_api_key_here" and len(xai_key) > 5)
 
     answer = ""
-    model_used = settings.grok_model
+    model_used = settings.grok_model or "llama-3.3-70b-versatile"
 
     if has_valid_key:
         try:
@@ -132,7 +136,7 @@ async def ask_procure_chatbot(
                 "Content-Type": "application/json"
             }
             body = {
-                "model": settings.grok_model,
+                "model": model_used,
                 "messages": messages_payload,
                 "temperature": 0.2,
                 "max_tokens": 1200
@@ -140,15 +144,19 @@ async def ask_procure_chatbot(
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(url, headers=headers, json=body)
+                if resp.status_code != 200:
+                    logger.warning(f"Groq API error HTTP {resp.status_code}: {resp.text}")
+                    print(f"[GROQ API ERROR] Status {resp.status_code}: {resp.text}")
                 resp.raise_for_status()
                 data = resp.json()
                 answer = data["choices"][0]["message"]["content"]
-                model_used = data.get("model", settings.grok_model)
+                model_used = data.get("model", model_used)
 
         except Exception as e:
-            logger.warning(f"Grok API call failed or timed out ({e}). Falling back to local intelligence.")
+            logger.warning(f"Groq/Grok API call failed ({e}). Falling back to local intelligence.")
+            print(f"[CHATBOT FALLBACK] Reason: {e}")
             answer = _generate_local_intelligence_response(message, context, sources)
-            model_used = "procure-ai-local-rules (Grok fallback)"
+            model_used = f"procure-ai-local (fallback: {type(e).__name__})"
     else:
         # Local procurement analyst fallback
         answer = _generate_local_intelligence_response(message, context, sources)
